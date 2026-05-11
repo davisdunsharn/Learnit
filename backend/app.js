@@ -20,7 +20,6 @@ const noteRoutes     = require('./routes/noteRoutes');
 const aiRoutes       = require('./routes/aiRoutes');
 const ocrRoutes      = require('./routes/ocrRoutes');
 const externalRoutes = require('./routes/externalRoutes');
-const iotRoutes      = require('./routes/iotRoutes');
 
 app.use('/api/auth',     authRoutes);
 app.use('/api/subjects', subjectRoutes);
@@ -28,7 +27,6 @@ app.use('/api/notes',    noteRoutes);
 app.use('/api/ai',       aiRoutes);
 app.use('/api/ocr',      ocrRoutes);
 app.use('/api/external', externalRoutes);
-app.use('/api/iot',      iotRoutes);
 
 // health check
 app.get('/', (req, res) => {
