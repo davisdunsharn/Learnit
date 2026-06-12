@@ -38,13 +38,13 @@ export default function Register() {
 
   const handle = e => { setForm({ ...form, [e.target.name]: e.target.value }); setError(""); };
 
-  const submit = e => {
+  const submit = async e => {
     e.preventDefault();
     if (passed < 5) return setError("Please meet all password requirements.");
     if (form.password !== form.confirm) return setError("Passwords don't match.");
     setLoad(true);
-    setTimeout(() => {
-      const res = register(form.name.trim(), form.email.trim(), form.password);
+    setTimeout(async () => {
+      const res = await register(form.name.trim(), form.email.trim(), form.password);
       setLoad(false);
       if (!res.ok) return setError(res.error);
       setSuccess(true);

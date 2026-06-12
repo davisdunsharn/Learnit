@@ -29,12 +29,12 @@ export default function Login() {
 
   const handle = e => { setForm({ ...form, [e.target.name]: e.target.value }); setError(""); };
 
-  const submit = e => {
+  const submit = async e => {
     e.preventDefault();
     if (!form.email || !form.password) return setError("Please fill in all fields.");
     setLoad(true);
-    setTimeout(() => {
-      const res = login(form.email.trim(), form.password);
+    setTimeout(async () => {
+      const res = await login(form.email.trim(), form.password);
       setLoad(false);
       if (!res.ok) return setError(res.error);
       navigate("/dashboard");

@@ -1,43 +1,65 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { supabase } from "../lib/supabase";
+
 const AuthContext = createContext(null);
-
-const USERS_KEY = "learnit_users";
-const SESSION_KEY = "learnit_session";
-
-const getUsers = () => { try { return JSON.parse(localStorage.getItem(USERS_KEY) || "[]"); } catch { return []; } };
-const saveUsers = u => localStorage.setItem(USERS_KEY, JSON.stringify(u));
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try { const s = localStorage.getItem(SESSION_KEY); if (s) setUser(JSON.parse(s)); } catch {}
-    setLoading(false);
+    // check if there's already a session on load
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // listen for auth changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const register = (name, email, password) => {
-    const users = getUsers();
-    if (users.find(u => u.email.toLowerCase() === email.toLowerCase()))
-      return { ok: false, error: "An account with this email already exists." };
-    saveUsers([...users, { id: Date.now(), name, email: email.toLowerCase(), password }]);
+  const register = async (name, email, password) => {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { name } }
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  if (data.user) {
+    const { error: insertError } = await supabase.from("users").insert([{
+      id: data.user.id,
+      name,
+      email
+      // no password column — Supabase Auth handles that
+    }]);
+
+    if (insertError) console.error("Failed to insert user profile:", insertError.message);
+  }
+
+  return { ok: true };
+};
+  const login = async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { ok: false, error: "Incorrect email or password." };
     return { ok: true };
   };
 
-  const login = (email, password) => {
-    const users = getUsers();
-    const found = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-    if (!found) return { ok: false, error: "Incorrect email or password." };
-    const { password: _, ...safe } = found;
-    setUser(safe);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(safe));
-    return { ok: true };
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
   };
 
-  const logout = () => { setUser(null); localStorage.removeItem(SESSION_KEY); };
+  // helper so components can get the user's display name
+  const userName = user?.user_metadata?.name || user?.email?.split("@")[0] || "Student";
 
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, register, login, logout, userName }}>
       {children}
     </AuthContext.Provider>
   );

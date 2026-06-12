@@ -1,962 +1,1032 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabase";
+import api from "../api/axios";
 import {
-  IconHome, IconNote, IconFolder, IconCalendar, IconHelpCircle,
-  IconLayoutGrid, IconScan, IconBook, IconMessagePlus, IconMessageCircle,
-  IconArrowLeft, IconSparkles, IconBook2, IconBulb, IconEdit,
-  IconRefresh, IconPlus, IconLogout, IconSend, IconSearch,
-  IconTrash, IconTrophy, IconCopy, IconX, IconChevronRight,
-  IconBolt, IconTarget,
+  IconBook2, IconPlus, IconLogout, IconChevronDown, IconChevronRight,
+  IconNote, IconFolder, IconSearch, IconX, IconSend, IconArrowLeft,
+  IconSparkles, IconBulb, IconHelpCircle, IconLayoutGrid, IconCalendar,
+  IconTrash, IconEdit, IconCheck, IconLoader2, IconUpload, IconCopy,
+  IconFileText, IconPhoto, IconMessageCircle, IconRefresh, IconTrophy,
+  IconTarget, IconBolt, IconNotes, IconChevronLeft, IconPencil,
 } from "@tabler/icons-react";
 
-// ── DATA ──────────────────────────────────────────────────────────────────────
-const SUBJECTS = [
-  { id:1, name:"Internet Programming", abbr:"IP", notes:4, color:"#6366f1", bg:"rgba(99,102,241,0.10)", border:"rgba(99,102,241,0.25)", updated:"Today",     img:"https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=400&auto=format&fit=crop&q=60" },
-  { id:2, name:"Data Structures",      abbr:"DS", notes:3, color:"#06b6d4", bg:"rgba(6,182,212,0.10)",  border:"rgba(6,182,212,0.25)",  updated:"Yesterday", img:"https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&auto=format&fit=crop&q=60" },
-  { id:3, name:"Software Engineering", abbr:"SE", notes:3, color:"#10b981", bg:"rgba(16,185,129,0.10)", border:"rgba(16,185,129,0.25)", updated:"Monday",    img:"https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&auto=format&fit=crop&q=60" },
-  { id:4, name:"Database Systems",     abbr:"DB", notes:2, color:"#f59e0b", bg:"rgba(245,158,11,0.10)", border:"rgba(245,158,11,0.25)", updated:"Sunday",    img:"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&auto=format&fit=crop&q=60" },
-  { id:5, name:"Mathematics",          abbr:"M",  notes:5, color:"#f43f5e", bg:"rgba(244,63,94,0.10)",  border:"rgba(244,63,94,0.25)",  updated:"Today",     img:"https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400&auto=format&fit=crop&q=60" },
-  { id:6, name:"Business Studies",     abbr:"BS", notes:2, color:"#8b5cf6", bg:"rgba(139,92,246,0.10)", border:"rgba(139,92,246,0.25)", updated:"Last week", img:"https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=400&auto=format&fit=crop&q=60" },
-];
-
-const NOTES = [
-  { id:1, sid:1, title:"RESTful API Design",    preview:"REST uses standard HTTP methods to manage resources. Stateless architecture.", date:"Today 14:32",  content:"REST stands for Representational State Transfer.\n\n• GET — retrieve data\n• POST — create new data\n• PUT — update existing data\n• DELETE — remove data\n\nStateless: each request contains all needed info." },
-  { id:2, sid:2, title:"Binary Search Trees",   preview:"BST: left < parent < right. O(log n) average for search, insert, delete.", date:"Yesterday",     content:"A BST is a binary tree where:\n• Left subtree < parent\n• Right subtree > parent\n\nOperations (average):\n• Search: O(log n)\n• Insert: O(log n)\n• Delete: O(log n)" },
-  { id:3, sid:3, title:"Agile & Scrum",         preview:"Iterative sprints of 1-4 weeks. Daily standups, sprint reviews, retrospectives.", date:"Mon, 10 May", content:"Agile: iterative approach to software dev.\n\nScrum roles:\n• Product Owner\n• Scrum Master\n• Dev Team\n\nCeremonies:\n• Daily Standup (15 min)\n• Sprint Review\n• Retrospective" },
-  { id:4, sid:4, title:"Normalisation 1NF–3NF", preview:"1NF: atomic values. 2NF: no partial deps. 3NF: no transitive deps.", date:"Sun, 9 May",  content:"Normalisation reduces data redundancy.\n\n1NF: Atomic values, no repeating groups\n2NF: No partial dependencies\n3NF: No transitive dependencies\nBCNF: Every determinant is a candidate key" },
-  { id:5, sid:5, title:"Calculus Fundamentals", preview:"Derivatives, integrals, chain rule. f'(x) is the instantaneous rate of change.", date:"Today 09:11", content:"Derivatives: f'(x) = lim(h→0) [f(x+h)-f(x)]/h\n\nChain rule: d/dx[f(g(x))] = f'(g(x))·g'(x)\n\nIntegration: reverse of differentiation\n∫x^n dx = x^(n+1)/(n+1) + C" },
-];
-
-const QUIZ_BANK = {
-  1: [
-    { q:"What does REST stand for?",           opts:["Remote Execution State Transfer","Representational State Transfer","Relational State Transfer","Request State Transfer"], ans:1 },
-    { q:"Which HTTP method retrieves data?",   opts:["POST","PUT","GET","DELETE"], ans:2 },
-    { q:"What does 'stateless' mean in REST?", opts:["Server stores sessions","Each request is self-contained","Client remembers past requests","Requests are compressed"], ans:1 },
-    { q:"Which status code means 'Not Found'?",opts:["200","301","404","500"], ans:2 },
-  ],
-  2: [
-    { q:"BST average search time complexity?", opts:["O(n)","O(n²)","O(log n)","O(1)"], ans:2 },
-    { q:"In a BST, where does the left child go?", opts:["Greater than parent","Equal to parent","Less than parent","Random"], ans:2 },
-    { q:"Worst case BST complexity (unbalanced)?", opts:["O(log n)","O(n)","O(1)","O(n²)"], ans:1 },
-    { q:"Which traversal visits: left → root → right?", opts:["Pre-order","In-order","Post-order","Level-order"], ans:1 },
-  ],
-  3: [
-    { q:"Which Scrum ceremony is 15 minutes daily?", opts:["Sprint Review","Retrospective","Daily Standup","Sprint Planning"], ans:2 },
-    { q:"What is a Sprint in Scrum?",            opts:["A bug fix","A 1-4 week iteration","A deployment","A meeting"], ans:1 },
-    { q:"Who owns the product backlog?",         opts:["Scrum Master","Dev Team","Product Owner","Stakeholders"], ans:2 },
-    { q:"What does Agile prioritise over processes?", opts:["Documentation","Tools","Individuals","Contracts"], ans:2 },
-  ],
-  4: [
-    { q:"1NF requires atomic values — what does that mean?", opts:["No NULL values","Indivisible cell values","No foreign keys","Unique rows"], ans:1 },
-    { q:"2NF removes what type of dependency?", opts:["Transitive","Partial","Functional","Multi-valued"], ans:1 },
-    { q:"3NF removes what type of dependency?", opts:["Partial","Multi-valued","Transitive","Join"], ans:2 },
-    { q:"BCNF stands for?",                     opts:["Boyce–Codd Normal Form","Basic Common Normal Form","Binary Column Normal Form","Base Condition Normal Form"], ans:0 },
-  ],
-  5: [
-    { q:"What is the derivative of x²?",        opts:["x","2x","2","x³/3"], ans:1 },
-    { q:"∫x dx = ?",                            opts:["x","x²","x²/2 + C","2x + C"], ans:2 },
-    { q:"Chain rule: d/dx[f(g(x))] = ?",        opts:["f'(x)·g(x)","f(g'(x))","f'(g(x))·g'(x)","f'(x) + g'(x)"], ans:2 },
-    { q:"What is f'(x) when f(x) = constant?",  opts:["1","The constant","0","Undefined"], ans:2 },
-  ],
-  6: [
-    { q:"What does GDP stand for?",             opts:["Gross Domestic Product","General Development Plan","Global Distribution Protocol","Government Debt Percentage"], ans:0 },
-    { q:"Supply and demand: price rises when?", opts:["Supply > demand","Demand > supply","Both equal","Neither changes"], ans:1 },
-    { q:"A monopoly has how many sellers?",     opts:["Many","Two","One","Zero"], ans:2 },
-    { q:"Fixed costs are costs that?",          opts:["Change with output","Stay constant regardless of output","Only exist in the short run","Are always zero"], ans:1 },
-  ],
+// ── helpers ────────────────────────────────────────────────────────────────
+const COLORS = ["#6366f1","#06b6d4","#10b981","#f59e0b","#f43f5e","#8b5cf6","#ec4899","#14b8a6"];
+const colorFor = (name = "") => COLORS[name.charCodeAt(0) % COLORS.length];
+const initials = (name = "") => name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+const firstLine = (text = "") => text.split("\n")[0].trim() || "Untitled";
+const timeAgo = (ts) => {
+  const d = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (d < 60) return "just now";
+  if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+  if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+  return new Date(ts).toLocaleDateString();
 };
 
-const FC_BANK = {
-  1: [{ term:"REST", def:"Representational State Transfer — API style using standard HTTP methods." },{ term:"Stateless", def:"Each API request contains all info needed — server stores no session." },{ term:"Endpoint", def:"A URL path that responds to API requests, e.g. /api/notes." }],
-  2: [{ term:"BST", def:"Binary Search Tree — left < parent < right. Average O(log n) operations." },{ term:"In-order", def:"BST traversal: left → root → right. Gives sorted output." },{ term:"Balanced", def:"A BST where height is O(log n), keeping operations efficient." }],
-  3: [{ term:"Scrum", def:"Agile framework with sprints, standups, reviews, and retrospectives." },{ term:"Sprint", def:"A time-boxed iteration (1-4 weeks) that produces a usable increment." },{ term:"Backlog", def:"An ordered list of features and tasks to be completed." }],
-  4: [{ term:"1NF", def:"First Normal Form — atomic values only, no repeating groups." },{ term:"2NF", def:"1NF + no partial dependencies on a composite primary key." },{ term:"3NF", def:"2NF + no transitive dependencies between non-key attributes." }],
-  5: [{ term:"Derivative", def:"f'(x) — the instantaneous rate of change of a function." },{ term:"Integral", def:"∫f(x)dx — the area under a curve; reverse of differentiation." },{ term:"Chain Rule", def:"d/dx[f(g(x))] = f'(g(x))·g'(x) — derivative of composite functions." }],
-  6: [{ term:"GDP", def:"Gross Domestic Product — total value of goods/services produced in a country." },{ term:"Monopoly", def:"A market structure with a single seller controlling supply." },{ term:"Fixed Cost", def:"A cost that remains constant regardless of output level." }],
-};
+// ── empty states ───────────────────────────────────────────────────────────
+const Empty = ({ icon: Icon, text, sub, action, actionLabel }) => (
+  <div className="flex flex-col items-center justify-center h-full gap-3 py-20">
+    <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "rgba(99,102,241,0.08)" }}>
+      <Icon size={24} style={{ color: "#6366f1" }} />
+    </div>
+    <p className="font-semibold text-sm" style={{ color: "#0f172a" }}>{text}</p>
+    {sub && <p className="text-xs text-center max-w-xs" style={{ color: "#94a3b8" }}>{sub}</p>}
+    {action && (
+      <button onClick={action} className="mt-1 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition"
+        style={{ background: "rgba(99,102,241,0.08)", color: "#6366f1", border: "1.5px solid rgba(99,102,241,0.2)" }}>
+        <IconPlus size={14} /> {actionLabel}
+      </button>
+    )}
+  </div>
+);
 
-const Nav = [
-  { id:"home",       icon:IconHome,        label:"Home" },
-  { id:"notes",      icon:IconNote,        label:"Notes" },
-  { id:"subjects",   icon:IconFolder,      label:"Subjects" },
-  { id:"studyplan",  icon:IconCalendar,    label:"Study Plan" },
-  { id:"quiz",       icon:IconHelpCircle,  label:"Quiz" },
-  { id:"flashcards", icon:IconLayoutGrid,  label:"Flashcards" },
-  { id:"scan",       icon:IconScan,        label:"Scan" },
-  { id:"dictionary", icon:IconBook,        label:"Dictionary" },
-  { id:"chat",       icon:IconMessagePlus, label:"Chat" },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
+// ── card style ─────────────────────────────────────────────────────────────
+const card = { background: "#fff", border: "1.5px solid #e2e8f0", boxShadow: "0 2px 8px rgba(15,23,42,0.06)" };
+const inp = "w-full rounded-2xl px-4 py-2.5 text-sm outline-none transition";
+const inpStyle = { background: "#fff", border: "1.5px solid #e2e8f0", color: "#0f172a", boxShadow: "0 1px 4px rgba(15,23,42,0.05)" };
+const onFocus = e => { e.target.style.borderColor = "#6366f1"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.12)"; };
+const onBlur  = e => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "0 1px 4px rgba(15,23,42,0.05)"; };
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
-  const [page, setPage]          = useState("home");
-  const [subjects, setSubjects]  = useState(SUBJECTS);
-  const [notes, setNotes]        = useState(NOTES);
-  const [activeNote, setActiveNote] = useState(null);
-  const [noteFilter, setFilter]  = useState("All");
-  const [search, setSearch]      = useState("");
+  const { user, logout, userName } = useAuth();
 
-  const [quizSubjId, setQuizSubjId] = useState(null);
-  const [quizA, setQuizA]           = useState({});
-
-  const [fcSubjId, setFcSubjId] = useState(null);
-  const [flipped, setFlipped]   = useState({});
-
-  const [chatMessages, setChatMessages] = useState([]);
+  // ── state ──
+  const [subjects, setSubjects]         = useState([]);
+  const [notes, setNotes]               = useState([]);
+  const [expanded, setExpanded]         = useState({});      // which subjects are open in sidebar
+  const [activeSubject, setActiveSubject] = useState(null);  // current subject open
+  const [activeTab, setActiveTab]       = useState("chat");  // chat | quiz | studyplan
+  const [activeNote, setActiveNote]     = useState(null);    // note being edited/viewed
+  const [notesPanel, setNotesPanel]     = useState(false);   // slide-in notes panel
+  const [view, setView]                 = useState("home");  // home | subject | allnotes | newnote
+  const [chats, setChats]               = useState({});      // { subjectId: [messages] }
   const [chatInput, setChatInput]       = useState("");
-  const chatEndRef   = useRef(null);
-  const fileInputRef = useRef(null);
+  const [aiLoading, setAiLoading]       = useState(false);
+  const [search, setSearch]             = useState("");
+  const [noteSearch, setNoteSearch]     = useState("");
+  const [loading, setLoading]           = useState(true);
 
-  const [dictSearch, setDictSearch] = useState("");
-  const [scannedText, setScannedText] = useState("Chapter 4 — Network Protocols\n\nHTTP is the foundation of data communication on the web. HTTPS adds SSL/TLS encryption to protect data in transit.");
+  // modals
+  const [addSubjModal, setAddSubjModal] = useState(false);
+  const [newSubjName, setNewSubjName]   = useState("");
+  const [subjError, setSubjError]       = useState("");
+  const [addingSubj, setAddingSubj]     = useState(false);
 
-  const [newSubj, setNewSubj]   = useState("");
-  const [addSubjM, setAddSubjM] = useState(false);
-  const [newNote, setNewNote]   = useState({ title:"", subject:"", content:"" });
-  const [noteModal, setNoteM]   = useState(false);
+  // note editing
+  const [editNote, setEditNote]         = useState({ title: "", content: "" });
+  const [savingNote, setSavingNote]     = useState(false);
+  const [noteError, setNoteError]       = useState("");
 
-  const go = (p, resetNote = true) => { setPage(p); if (resetNote) setActiveNote(null); };
+  // quiz
+  const [quizAnswers, setQuizAnswers]   = useState({});
+  const [quizData, setQuizData]         = useState(null);
+  const [quizLoading, setQuizLoading]   = useState(false);
+  const [aiResult, setAiResult] = useState(null);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior:"smooth" }); }, [chatMessages]);
+  // file drop in chat
+  const fileRef    = useRef(null);
+  const chatEndRef = useRef(null);
 
-  const sendChatMessage = () => {
-    const msg = chatInput.trim();
-    if (!msg) return;
-    setChatMessages(m => [...m, { role:"user", text: msg }]);
+  // ── load data ──────────────────────────────────────────────────────────
+  const loadSubjects = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("subjects")
+      .select("*")
+      .eq("user_id", user.id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true });
+    setSubjects(data || []);
+  }, [user]);
+
+  const loadNotes = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("notes")
+      .select("*, subjects(id, name)")
+      .eq("user_id", user.id)
+      .is("deleted_at", null)
+      .order("updated_at", { ascending: false });
+    setNotes(data || []);
+  }, [user]);
+
+  const loadChats = useCallback(async (subjectId) => {
+    if (!user || !subjectId) return;
+    const { data } = await supabase
+      .from("subject_chats")
+      .select("*")
+      .eq("subject_id", subjectId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true });
+    setChats(prev => ({ ...prev, [subjectId]: data || [] }));
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([loadSubjects(), loadNotes()]).finally(() => setLoading(false));
+  }, [user, loadSubjects, loadNotes]);
+
+  useEffect(() => {
+    if (activeSubject) loadChats(activeSubject.id);
+  }, [activeSubject, loadChats]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chats, activeSubject]);
+
+  // ── subjects ───────────────────────────────────────────────────────────
+  const addSubject = async () => {
+    if (!newSubjName.trim()) return setSubjError("Subject name is required.");
+    setAddingSubj(true);
+    setSubjError("");
+    const { error } = await supabase.from("subjects").insert([{
+      user_id: user.id,
+      name: newSubjName.trim(),
+      colour: colorFor(newSubjName.trim()),
+    }]);
+    setAddingSubj(false);
+    if (error) {
+      if (error.code === "23505") return setSubjError("You already have a subject with that name.");
+      return setSubjError("Something went wrong. Try again.");
+    }
+    setNewSubjName("");
+    setAddSubjModal(false);
+    loadSubjects();
+  };
+
+  const deleteSubject = async (subj) => {
+    if (!window.confirm(`Remove "${subj.name}"? Notes inside it will also be hidden.`)) return;
+    await supabase.from("subjects").update({ deleted_at: new Date().toISOString() }).eq("id", subj.id);
+    if (activeSubject?.id === subj.id) { setActiveSubject(null); setView("home"); }
+    loadSubjects();
+    loadNotes();
+  };
+
+  const openSubject = (subj) => {
+    setActiveSubject(subj);
+    setActiveTab("chat");
+    setView("subject");
+    setNotesPanel(false);
+    setQuizData(null);
+    setQuizAnswers({});
+  };
+
+  // ── notes ──────────────────────────────────────────────────────────────
+  const openNewNote = (subjectId = null) => {
+    setEditNote({ title: "", content: "", subject_id: subjectId || activeSubject?.id || null, id: null });
+    setNoteError("");
+    setView("newnote");
+    setNotesPanel(false);
+  };
+
+  const openNote = (note) => {
+    setEditNote({ id: note.id, title: note.title, content: note.content, subject_id: note.subject_id });
+    setNoteError("");
+    setView("newnote");
+    setNotesPanel(false);
+  };
+
+  const saveNote = async () => {
+    if (!editNote.content.trim()) return setNoteError("Note cannot be empty.");
+    setSavingNote(true);
+    setNoteError("");
+    const title = firstLine(editNote.content) || "Untitled";
+    if (editNote.id) {
+      await supabase.from("notes").update({
+        title,
+        content: editNote.content,
+        updated_at: new Date().toISOString(),
+      }).eq("id", editNote.id);
+    } else {
+      await supabase.from("notes").insert([{
+        user_id: user.id,
+        subject_id: editNote.subject_id || null,
+        title,
+        content: editNote.content,
+      }]);
+    }
+    setSavingNote(false);
+    loadNotes();
+    // go back to where we came from
+    if (activeSubject) { setView("subject"); setNotesPanel(true); }
+    else setView("allnotes");
+  };
+
+  const deleteNote = async (note) => {
+    if (!window.confirm(`Remove "${note.title}"?`)) return;
+    await supabase.from("notes").update({ deleted_at: new Date().toISOString() }).eq("id", note.id);
+    if (view === "newnote") {
+      if (activeSubject) { setView("subject"); setNotesPanel(true); }
+      else setView("allnotes");
+    }
+    loadNotes();
+  };
+
+  // ── chat ───────────────────────────────────────────────────────────────
+  const sendMessage = async (text = chatInput, fileData = null) => {
+    if (!text.trim() && !fileData) return;
+    if (!activeSubject) return;
+    const subId = activeSubject.id;
+    const userMsg = { role: "user", content: text.trim(), file_name: fileData?.name };
     setChatInput("");
-    const lower = msg.toLowerCase();
-    let reply = "";
-    if (lower.includes("summar"))     reply = "I'll help you summarize your notes! Go to the Notes section to review and organize them by topic.";
-    else if (lower.includes("quiz"))  reply = "Head to the Quiz section to test your knowledge! You can select different subjects to challenge yourself.";
-    else if (lower.includes("flash")) reply = "Great idea! Go to the Cards section to create or review flashcards for key terms and definitions.";
-    else if (lower.includes("plan"))  reply = "I recommend creating a study plan by breaking down your subjects into daily goals. Start with your weakest areas first.";
-    else if (lower.includes("explain") || lower.includes("what is") || lower.includes("how")) reply = "Break down the concept into smaller parts. Start with the basics, then explore how different elements connect together.";
-    else if (lower.includes("help"))  reply = "I'm here to help! You can ask me about study tips, note organization, quiz strategies, and more. What would you like to know?";
-    else reply = "That's an interesting question! Based on your studies, I'd recommend exploring this topic further in your notes or flashcards. Need more help?";
-    setTimeout(() => {
-      setChatMessages(m => [...m, { role:"assistant", text: reply }]);
-    }, 600 + Math.random() * 400);
-  };
+    setAiLoading(true);
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setChatMessages(m => [...m, { role:"user", text: `📎 Uploaded: ${file.name}` }]);
-      setTimeout(() => {
-        setChatMessages(m => [...m, { role:"assistant", text: `Great! I've received your file "${file.name}". How can I help you with this?` }]);
-      }, 500);
+    // save user message
+    await supabase.from("subject_chats").insert([{
+      subject_id: subId, user_id: user.id,
+      role: "user", content: text.trim() || `[file: ${fileData?.name}]`,
+      file_name: fileData?.name || null,
+    }]);
+
+    setChats(prev => ({ ...prev, [subId]: [...(prev[subId] || []), { ...userMsg, created_at: new Date().toISOString() }] }));
+
+    // get last 10 messages for context
+    const history = (chats[subId] || []).slice(-10).map(m => ({ role: m.role, content: m.content }));
+
+    // subject notes as context
+    const subjectNotes = notes.filter(n => n.subject_id === subId).map(n => n.content).join("\n\n").slice(0, 2000);
+    const systemPrompt = `You are a helpful AI study tutor for the subject "${activeSubject.name}". 
+The student's notes for this subject are:\n${subjectNotes || "No notes yet."}\n
+Help the student understand concepts, answer questions, and study effectively. Be clear and concise.`;
+
+    try {
+      const res = await api.post("/ai/chat", {
+        messages: [...history, { role: "user", content: text.trim() || `The student uploaded a file: ${fileData?.name}` }],
+        system: systemPrompt,
+      });
+      const reply = res.data.result;
+
+      await supabase.from("subject_chats").insert([{
+        subject_id: subId, user_id: user.id,
+        role: "assistant", content: reply,
+      }]);
+
+      setChats(prev => ({
+        ...prev,
+        [subId]: [...(prev[subId] || []), { role: "assistant", content: reply, created_at: new Date().toISOString() }]
+      }));
+    } catch {
+      setChats(prev => ({
+        ...prev,
+        [subId]: [...(prev[subId] || []), { role: "assistant", content: "Sorry, something went wrong. Try again.", created_at: new Date().toISOString() }]
+      }));
     }
+    setAiLoading(false);
   };
 
-  const addSubject = () => {
-    if (!newSubj.trim()) return;
-    const cols = ["#6366f1","#06b6d4","#10b981","#f59e0b","#f43f5e","#8b5cf6"];
-    const c = cols[subjects.length % cols.length];
-    setSubjects([...subjects, { id:Date.now(), name:newSubj.trim(), abbr:newSubj.trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(), notes:0, color:c, bg:`${c}1A`, border:`${c}40`, updated:"Just now", img:"https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=400&auto=format&fit=crop&q=60" }]);
-    setNewSubj(""); setAddSubjM(false);
+  const handleFileDrop = async (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files[0] || e.target.files?.[0];
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/png", "application/pdf", "application/vnd.openxmlformats-officedocument.presentationml.presentation"];
+    if (!allowed.includes(file.type)) return alert("Only images, PDFs and PPTX files are supported.");
+    sendMessage(`I uploaded a file called "${file.name}". Can you help me understand it?`, { name: file.name });
   };
 
-  const saveNote = () => {
-    if (!newNote.title || !newNote.subject) return;
-    const subj = subjects.find(s => s.name === newNote.subject);
-    setNotes([{ id:Date.now(), sid:subj?.id||0, title:newNote.title, preview:newNote.content.slice(0,80), date:"Just now", content:newNote.content }, ...notes]);
-    setSubjects(subjects.map(s => s.name === newNote.subject ? { ...s, notes: s.notes+1 } : s));
-    setNewNote({ title:"", subject:"", content:"" }); setNoteM(false);
-  };
-
-  const filtNotes = notes.filter(n => {
-    const s = subjects.find(x=>x.id===n.sid);
-    return (noteFilter==="All" || s?.name===noteFilter) &&
-           (n.title.toLowerCase().includes(search.toLowerCase()) || (s?.name||"").toLowerCase().includes(search.toLowerCase()));
-  });
-  const subjectOf = n => subjects.find(s=>s.id===n.sid);
-
-  const quizSubject = subjects.find(s=>s.id===quizSubjId);
-  const currentQuiz = quizSubjId ? (QUIZ_BANK[quizSubjId] || []) : [];
-  const currentFC   = fcSubjId   ? (FC_BANK[fcSubjId]     || []) : [];
-
-  // ── Input style helper ──
-  const inp = "w-full rounded-2xl px-4 py-2.5 text-sm outline-none transition";
-  const inpStyle = { background:"#fff", border:"1.5px solid #e2e8f0", color:"#0f172a", boxShadow:"0 1px 4px rgba(15,23,42,0.05)" };
-  const onFocus = e => { e.target.style.borderColor="#6366f1"; e.target.style.boxShadow="0 0 0 3px rgba(99,102,241,0.12)"; };
-  const onBlur  = e => { e.target.style.borderColor="#e2e8f0"; e.target.style.boxShadow="0 1px 4px rgba(15,23,42,0.05)"; };
-
-  // ── Note Detail ──
-  const renderNoteDetail = () => {
-    if (!activeNote) {
-      return (
-        <div className="fade-up p-6 text-center">
-          <div className="max-w-md mx-auto rounded-3xl p-10" style={{ background:"#fff", border:"1.5px solid #e2e8f0", boxShadow:"0 4px 20px rgba(15,23,42,0.06)" }}>
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background:"rgba(99,102,241,0.08)" }}>
-              <IconNote size={24} style={{ color:"#6366f1" }} />
-            </div>
-            <p className="font-semibold mb-2" style={{ color:"#0f172a" }}>No note selected</p>
-            <p className="text-sm mb-5" style={{ color:"#64748b" }}>Choose a note from the Notes screen to view its details.</p>
-            <button onClick={()=>go("notes")} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition"
-              style={{ background:"rgba(99,102,241,0.08)", color:"#6366f1", border:"1.5px solid rgba(99,102,241,0.2)" }}>
-              <IconArrowLeft size={16} /> Back to notes
-            </button>
-          </div>
-        </div>
-      );
+  // ── AI tools on notes ──────────────────────────────────────────────────
+  const runAI = async (type) => {
+    if (!activeNote && view !== "newnote") return;
+    const content = editNote.content || activeNote?.content;
+    if (!content?.trim()) return alert("Add some content to the note first.");
+    setAiLoading(true);
+    try {
+      const res = await api.post(`/ai/${type}`, { content, note_id: editNote.id || activeNote?.id });
+      // save to ai_results if we have a note id
+      if (editNote.id || activeNote?.id) {
+        await supabase.from("ai_results").insert([{
+          note_id: editNote.id || activeNote.id,
+          type,
+          result: JSON.stringify(res.data.result),
+        }]);
+      }
+      if (type === "quiz") {
+        setQuizData(res.data.result);
+        setQuizAnswers({});
+        setActiveTab("quiz");
+      } else {
+       setAiResult({ type, content: res.data.result });
+      }
+    } catch {
+      alert("AI is unavailable right now. Try again.");
     }
-
-    const s = subjectOf(activeNote);
-    return (
-      <div className="fade-up flex min-h-[64vh] gap-5 flex-col xl:flex-row p-6">
-        <div className="flex-1 rounded-3xl overflow-hidden" style={{ background:"#fff", border:"1.5px solid #e2e8f0", boxShadow:"0 4px 20px rgba(15,23,42,0.06)" }}>
-          <button onClick={()=>go("notes")} className="flex items-center gap-2 text-sm m-5 transition" style={{ color:"#94a3b8" }}
-            onMouseEnter={e=>e.currentTarget.style.color="#6366f1"} onMouseLeave={e=>e.currentTarget.style.color="#94a3b8"}>
-            <IconArrowLeft size={16} /> Back to notes
-          </button>
-          {s?.img && (
-            <div className="relative w-full h-44 overflow-hidden mb-5">
-              <img src={s.img} alt="" className="w-full h-full object-cover" />
-              <div className="absolute inset-0" style={{ background:`linear-gradient(to bottom, transparent 40%, #fff)` }} />
-            </div>
-          )}
-          <div className="px-6 pb-6">
-            <span className="pill mb-4 inline-block" style={{ background:s?.bg, color:s?.color, border:`1.5px solid ${s?.border}` }}>{s?.name || "General"}</span>
-            <h2 className="text-3xl font-bold mb-2" style={{ color:"#0f172a" }}>{activeNote.title}</h2>
-            <p className="text-xs uppercase tracking-widest mb-5" style={{ color:"#94a3b8" }}>{activeNote.date}</p>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-              {[
-                ["Subject",   s?.name || "General"],
-                ["Preview",   activeNote.preview],
-                ["Words",     activeNote.content.split(/\s+/).filter(Boolean).length],
-                ["Read time", Math.max(1, Math.ceil(activeNote.content.split(/\s+/).filter(Boolean).length / 180)) + " min"],
-              ].map(([label, val]) => (
-                <div key={label} className="rounded-2xl p-4" style={{ background:"#f8faff", border:"1.5px solid #e2e8f0" }}>
-                  <div className="text-[11px] uppercase font-semibold tracking-wider mb-1.5" style={{ color:"#94a3b8" }}>{label}</div>
-                  <div className="text-sm font-medium line-clamp-2" style={{ color:"#0f172a" }}>{val}</div>
-                </div>
-              ))}
-            </div>
-            <div className="text-sm leading-8 whitespace-pre-line" style={{ color:"#475569" }}>{activeNote.content}</div>
-            <div className="mt-8 pt-6 flex flex-wrap gap-2" style={{ borderTop:"1px solid #e2e8f0" }}>
-              {activeNote.title.split(" ").filter(w=>w.length>3).slice(0,5).map(w => (
-                <span key={w} className="text-xs px-3 py-1 rounded-full transition" style={{ border:"1.5px solid #e2e8f0", color:"#94a3b8" }}>{w}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="w-full xl:w-72 rounded-3xl p-5" style={{ background:"#fff", border:"1.5px solid #e2e8f0", boxShadow:"0 4px 20px rgba(15,23,42,0.06)" }}>
-          <div className="flex items-center gap-2 mb-5">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background:"rgba(99,102,241,0.10)" }}>
-              <IconSparkles size={16} style={{ color:"#6366f1" }} />
-            </div>
-            <span className="text-sm font-bold" style={{ color:"#0f172a" }}>AI Tools</span>
-          </div>
-          <div className="space-y-2">
-            {[
-              { icon:IconNote,        label:"Summarise",  action:()=>go("notes") },
-              { icon:IconBulb,        label:"Explain it", action:()=>go("dictionary") },
-              { icon:IconHelpCircle,  label:"Quiz me",    action:()=>go("quiz") },
-              { icon:IconLayoutGrid,  label:"Flashcards", action:()=>go("flashcards") },
-              { icon:IconCalendar,    label:"Study plan", action:()=>go("studyplan") },
-              { icon:IconEdit,        label:"Notes",      action:()=>go("notes") },
-            ].map((b,i) => (
-              <button key={i} onClick={b.action}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm transition text-left"
-                style={{ border:"1.5px solid #e2e8f0", color:"#475569" }}
-                onMouseEnter={e=>{ e.currentTarget.style.background="rgba(99,102,241,0.06)"; e.currentTarget.style.borderColor="rgba(99,102,241,0.25)"; e.currentTarget.style.color="#6366f1"; }}
-                onMouseLeave={e=>{ e.currentTarget.style.background=""; e.currentTarget.style.borderColor="#e2e8f0"; e.currentTarget.style.color="#475569"; }}>
-                <b.icon size={16} />{b.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    setAiLoading(false);
   };
 
-  // ── Shared card style ──
-  const card = { background:"#fff", border:"1.5px solid #e2e8f0", boxShadow:"0 2px 8px rgba(15,23,42,0.06)" };
+  // ── filtered notes ─────────────────────────────────────────────────────
+  const subjectNotes = (subId) => notes.filter(n => n.subject_id === subId);
+  const filteredAllNotes = notes.filter(n =>
+    n.title.toLowerCase().includes(noteSearch.toLowerCase()) ||
+    n.content.toLowerCase().includes(noteSearch.toLowerCase())
+  );
+
+  // ── sidebar toggle ─────────────────────────────────────────────────────
+  const toggleExpand = (id) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "#f0f4ff" }}>
+      <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+    </div>
+  );
+
+  const currentChats = activeSubject ? (chats[activeSubject.id] || []) : [];
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background:"#f0f4ff" }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: "#f0f4ff" }}>
 
       {/* ══ SIDEBAR ══ */}
-      <aside className="w-64 flex flex-col shrink-0" style={{ background:"#fff", borderRight:"1px solid #e2e8f0", boxShadow:"2px 0 12px rgba(15,23,42,0.05)" }}>
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-5 py-5" style={{ borderBottom:"1px solid #f1f5f9" }}>
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg"
-            style={{ background:"linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow:"0 4px 14px rgba(99,102,241,0.35)" }}>
-            <IconBook2 size={18} className="text-white" />
+      <aside className="w-60 flex flex-col shrink-0 overflow-hidden" style={{ background: "#fff", borderRight: "1px solid #e2e8f0", boxShadow: "2px 0 12px rgba(15,23,42,0.05)" }}>
+
+        {/* logo */}
+        <div className="flex items-center gap-3 px-4 py-4" style={{ borderBottom: "1px solid #f1f5f9" }}>
+          <div className="w-9 h-9 rounded-2xl flex items-center justify-center shadow-lg"
+            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 14px rgba(99,102,241,0.35)" }}>
+            <IconBook2 size={16} className="text-white" />
           </div>
-          <span className="syne text-xl font-bold" style={{ color:"#0f172a" }}>LearnIt</span>
+          <span className="syne text-lg font-bold" style={{ color: "#0f172a" }}>LearnIt</span>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {Nav.map(n => {
-            const active = page === n.id;
+        {/* new chat button */}
+        <div className="px-3 pt-3">
+          <button onClick={() => { setActiveSubject(null); setView("home"); }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition"
+            style={{ background: "rgba(99,102,241,0.06)", color: "#6366f1", border: "1.5px solid rgba(99,102,241,0.15)" }}>
+            <IconPlus size={14} /> New Chat
+          </button>
+        </div>
+
+        {/* nav */}
+        <nav className="flex-1 overflow-y-auto px-2 pt-3 pb-2">
+
+          {/* all notes link */}
+          <button onClick={() => { setView("allnotes"); setActiveSubject(null); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition mb-1"
+            style={{ color: view === "allnotes" ? "#6366f1" : "#64748b", background: view === "allnotes" ? "rgba(99,102,241,0.08)" : "transparent", fontWeight: view === "allnotes" ? 600 : 400 }}>
+            <IconNotes size={15} /> Notes
+          </button>
+
+          {/* subjects section */}
+          <div className="flex items-center justify-between px-3 py-1.5 mt-1">
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#94a3b8" }}>Subjects</span>
+            <button onClick={() => setAddSubjModal(true)} className="transition" style={{ color: "#94a3b8" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#6366f1"}
+              onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}>
+              <IconPlus size={13} />
+            </button>
+          </div>
+
+          {subjects.length === 0 && (
+            <p className="text-xs px-3 py-2" style={{ color: "#cbd5e1" }}>No subjects yet</p>
+          )}
+
+          {subjects.map(subj => {
+            const color = subj.colour || colorFor(subj.name);
+            const isOpen = expanded[subj.id];
+            const isActive = activeSubject?.id === subj.id;
+            const sNotes = subjectNotes(subj.id);
             return (
-              <button key={n.id} onClick={() => go(n.id)}
-                className="nav-pill w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition"
-                style={{
-                  background: active ? "rgba(99,102,241,0.08)" : "transparent",
-                  color: active ? "#6366f1" : "#64748b",
-                  borderColor: active ? "rgba(99,102,241,0.2)" : "transparent",
-                  fontWeight: active ? 600 : 400,
-                }}>
-                <n.icon size={16} />
-                {n.label}
-              </button>
+              <div key={subj.id}>
+                {/* subject row */}
+                <div className="flex items-center gap-1 rounded-xl px-1 py-0.5 group transition"
+                  style={{ background: isActive ? "rgba(99,102,241,0.06)" : "transparent" }}>
+                  <button onClick={() => toggleExpand(subj.id)} className="p-1 rounded-lg transition" style={{ color: "#94a3b8" }}>
+                    {isOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
+                  </button>
+                  <button onClick={() => openSubject(subj)}
+                    className="flex-1 flex items-center gap-2 py-1.5 text-sm text-left transition"
+                    style={{ color: isActive ? "#6366f1" : "#374151", fontWeight: isActive ? 600 : 400 }}>
+                    <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                      style={{ background: color }}>{initials(subj.name)}</span>
+                    <span className="truncate text-xs">{subj.name}</span>
+                  </button>
+                  <button onClick={() => deleteSubject(subj)}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded-lg transition"
+                    style={{ color: "#f43f5e" }}>
+                    <IconTrash size={11} />
+                  </button>
+                </div>
+
+                {/* expanded notes under subject */}
+                {isOpen && (
+                  <div className="ml-7 mb-1">
+                    {sNotes.map(n => (
+                      <button key={n.id} onClick={() => openNote(n)}
+                        className="w-full text-left px-2 py-1 rounded-lg text-xs truncate transition"
+                        style={{ color: "#64748b" }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "#f8faff"; e.currentTarget.style.color = "#6366f1"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = ""; e.currentTarget.style.color = "#64748b"; }}>
+                        {n.title}
+                      </button>
+                    ))}
+                    <button onClick={() => openNewNote(subj.id)}
+                      className="w-full text-left px-2 py-1 rounded-lg text-xs transition flex items-center gap-1"
+                      style={{ color: "#94a3b8" }}
+                      onMouseEnter={e => { e.currentTarget.style.color = "#6366f1"; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; }}>
+                      <IconPlus size={10} /> Add note
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
 
-        {/* User */}
-        <div className="p-3" style={{ borderTop:"1px solid #f1f5f9" }}>
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl" style={{ background:"#f8faff", border:"1.5px solid #e2e8f0" }}>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold uppercase shrink-0 text-white"
-              style={{ background:"linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
-              {user?.name?.[0]||"U"}
+        {/* user */}
+        <div className="p-3" style={{ borderTop: "1px solid #f1f5f9" }}>
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-2xl" style={{ background: "#f8faff", border: "1.5px solid #e2e8f0" }}>
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+              style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+              {userName[0]?.toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold truncate capitalize" style={{ color:"#0f172a" }}>{user?.name}</div>
-              <div className="text-[11px] truncate" style={{ color:"#94a3b8" }}>{user?.email}</div>
+              <div className="text-xs font-semibold truncate capitalize" style={{ color: "#0f172a" }}>{userName}</div>
+              <div className="text-[10px] truncate" style={{ color: "#94a3b8" }}>{user?.email}</div>
             </div>
-            <button onClick={logout} className="transition shrink-0 p-1 rounded-lg"
-              style={{ color:"#cbd5e1" }}
-              onMouseEnter={e=>{ e.currentTarget.style.color="#f43f5e"; e.currentTarget.style.background="rgba(244,63,94,0.08)"; }}
-              onMouseLeave={e=>{ e.currentTarget.style.color="#cbd5e1"; e.currentTarget.style.background=""; }}>
-              <IconLogout size={16} />
+            <button onClick={logout} className="transition shrink-0 p-1 rounded-lg" style={{ color: "#cbd5e1" }}
+              onMouseEnter={e => { e.currentTarget.style.color = "#f43f5e"; e.currentTarget.style.background = "rgba(244,63,94,0.08)"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "#cbd5e1"; e.currentTarget.style.background = ""; }}>
+              <IconLogout size={14} />
             </button>
           </div>
         </div>
       </aside>
 
       {/* ══ MAIN ══ */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
 
-        {/* Topbar */}
-        <header className="flex items-center gap-3 px-6 py-4 shrink-0"
-          style={{ background:"rgba(255,255,255,0.9)", borderBottom:"1px solid #e2e8f0", backdropFilter:"blur(16px)" }}>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold capitalize" style={{ color:"#0f172a" }}>
-              {page==="home" ? `Good day, ${user?.name} 👋` : Nav.find(n=>n.id===page)?.label || page}
-            </h1>
-          </div>
-          {page==="notes" && (
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color:"#94a3b8" }}><IconSearch size={14} /></span>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search notes…"
-                className="rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition w-52"
-                style={{ background:"#f8faff", border:"1.5px solid #e2e8f0", color:"#0f172a" }}
-                onFocus={onFocus} onBlur={onBlur} />
-            </div>
-          )}
-          <button onClick={() => setNoteM(true)}
-            className="flex items-center gap-2 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition"
-            style={{ background:"linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow:"0 4px 14px rgba(99,102,241,0.30)" }}>
-            <IconPlus size={16} /> New Note
-          </button>
-        </header>
+        {/* ── HOME ── */}
+        {view === "home" && (
+          <div className="flex-1 flex flex-col overflow-y-auto">
+            <div className="px-8 py-10 max-w-3xl mx-auto w-full">
+              <h1 className="text-3xl font-bold mb-1" style={{ color: "#0f172a" }}>Good day, {userName} 👋</h1>
+              <p className="text-sm mb-8" style={{ color: "#64748b" }}>Pick a subject to start studying or create a new note.</p>
 
-        {/* Pages */}
-        <main className="flex-1 overflow-y-auto">
-
-          {/* ── HOME ── */}
-          {page==="home" && (
-            <div className="fade-up">
-              {/* Hero banner */}
-              <div className="relative h-52 overflow-hidden">
-                <img src="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=1400&auto=format&fit=crop&q=70"
-                  alt="Library" className="w-full h-full object-cover" />
-                <div className="absolute inset-0" style={{ background:"linear-gradient(135deg, rgba(99,102,241,0.75), rgba(139,92,246,0.60))" }} />
-                <div className="absolute inset-0 flex flex-col justify-end p-8">
-                  <p className="text-white/80 text-sm mb-1">You have <span className="font-bold text-white">{notes.length} notes</span> across {subjects.length} subjects</p>
-                  <h2 className="text-white text-2xl font-bold">Keep learning, keep growing ✨</h2>
-                </div>
-              </div>
-
-              <div className="px-6 pt-5 pb-6 space-y-6">
-                {/* Stats */}
-                <div className="grid grid-cols-4 gap-3">
-                  {[
-                    { label:"Notes",    val:notes.length,    icon:IconNote,       color:"#6366f1", bg:"rgba(99,102,241,0.10)" },
-                    { label:"Subjects", val:subjects.length, icon:IconFolder,      color:"#06b6d4", bg:"rgba(6,182,212,0.10)" },
-                    { label:"Quizzes",  val:"28",            icon:IconHelpCircle, color:"#10b981", bg:"rgba(16,185,129,0.10)" },
-                    { label:"Scanned",  val:"6",             icon:IconScan,       color:"#f59e0b", bg:"rgba(245,158,11,0.10)" },
-                  ].map(s => (
-                    <div key={s.label} className="stat-glow rounded-2xl p-4 flex items-center gap-3 transition card-hover" style={{ ...card, color: s.color }}>
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background:s.bg }}>
-                        <s.icon size={18} style={{ color:s.color }} />
-                      </div>
-                      <div>
-                        <div className="text-xl font-bold" style={{ color:"#0f172a" }}>{s.val}</div>
-                        <div className="text-xs font-medium" style={{ color:"#94a3b8" }}>{s.label}</div>
-                      </div>
+              {/* stats */}
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                {[
+                  { label: "Notes", val: notes.length, icon: IconNote, color: "#6366f1" },
+                  { label: "Subjects", val: subjects.length, icon: IconFolder, color: "#06b6d4" },
+                  { label: "AI results", val: 0, icon: IconSparkles, color: "#10b981" },
+                ].map(s => (
+                  <div key={s.label} className="rounded-2xl p-4 flex items-center gap-3" style={card}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${s.color}15` }}>
+                      <s.icon size={16} style={{ color: s.color }} />
                     </div>
-                  ))}
-                </div>
-
-                {/* Recent Notes */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color:"#475569" }}>Recent Notes</h2>
-                    <button onClick={()=>go("notes")} className="text-xs font-semibold flex items-center gap-1 transition" style={{ color:"#6366f1" }}>
-                      View all <IconChevronRight size={12} />
-                    </button>
+                    <div>
+                      <div className="text-xl font-bold" style={{ color: "#0f172a" }}>{s.val}</div>
+                      <div className="text-xs" style={{ color: "#94a3b8" }}>{s.label}</div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {notes.slice(0,4).map(n => {
-                      const s = subjectOf(n);
-                      return (
-                        <button key={n.id} onClick={()=>{setActiveNote(n); setPage("notedetail");}}
-                          className="card-hover rounded-2xl p-4 text-left group transition"
-                          style={card}>
-                          <div className="flex items-center gap-2 mb-3">
-                            <span className="pill" style={{ background:s?.bg, color:s?.color, border:`1.5px solid ${s?.border}` }}>{s?.abbr}</span>
-                            <span className="text-[11px]" style={{ color:"#94a3b8" }}>{n.date}</span>
-                          </div>
-                          <div className="text-sm font-semibold mb-1.5 transition group-hover:text-indigo-600" style={{ color:"#0f172a" }}>{n.title}</div>
-                          <div className="text-xs leading-relaxed line-clamp-3" style={{ color:"#94a3b8" }}>{n.preview}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Subjects strip */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color:"#475569" }}>Your Subjects</h2>
-                    <button onClick={()=>go("subjects")} className="text-xs font-semibold flex items-center gap-1" style={{ color:"#6366f1" }}>
-                      Manage <IconChevronRight size={12} />
-                    </button>
-                  </div>
-                  <div className="flex gap-3 overflow-x-auto pb-2">
-                    {subjects.map(s => (
-                      <div key={s.id} className="relative shrink-0 w-36 h-24 rounded-2xl overflow-hidden cursor-pointer group card-hover">
-                        <img src={s.img} alt={s.name} className="absolute inset-0 w-full h-full object-cover transition group-hover:scale-110 duration-500" />
-                        <div className="absolute inset-0" style={{ background:`linear-gradient(to top, ${s.color}CC, ${s.color}44)` }} />
-                        <div className="absolute bottom-0 left-0 right-0 p-2.5">
-                          <div className="text-xs font-bold text-white leading-tight drop-shadow">{s.name}</div>
-                          <div className="text-[10px] text-white/75">{s.notes} notes</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── NOTES ── */}
-          {page==="notes" && (
-            <div className="fade-up p-6">
-              {/* Filter pills */}
-              <div className="flex gap-2 flex-wrap mb-5">
-                {["All", ...subjects.map(s=>s.name)].map(f => (
-                  <button key={f} onClick={()=>setFilter(f)}
-                    className="px-3.5 py-1.5 rounded-full text-xs font-semibold transition"
-                    style={noteFilter===f
-                      ? { background:"rgba(99,102,241,0.12)", color:"#6366f1", border:"1.5px solid rgba(99,102,241,0.25)" }
-                      : { background:"#fff", color:"#64748b", border:"1.5px solid #e2e8f0" }}>
-                    {f}
-                  </button>
                 ))}
               </div>
 
-              {filtNotes.length===0 ? (
-                <div className="flex flex-col items-center justify-center h-48 gap-3" style={{ color:"#cbd5e1" }}>
-                  <IconNote size={40} />
-                  <p className="text-sm">No notes found</p>
-                </div>
+              {/* subjects grid */}
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: "#475569" }}>Your Subjects</h2>
+                <button onClick={() => setAddSubjModal(true)} className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#6366f1" }}>
+                  <IconPlus size={12} /> Add
+                </button>
+              </div>
+              {subjects.length === 0 ? (
+                <Empty icon={IconFolder} text="No subjects yet" sub="Create a subject to organise your notes and start studying." action={() => setAddSubjModal(true)} actionLabel="Add Subject" />
               ) : (
-                <div className="grid grid-cols-3 gap-3">
-                  {filtNotes.map(n => {
-                    const s = subjectOf(n);
+                <div className="grid grid-cols-2 gap-3 mb-8">
+                  {subjects.map(subj => {
+                    const color = subj.colour || colorFor(subj.name);
                     return (
-                      <button key={n.id} onClick={()=>{setActiveNote(n); setPage("notedetail");}}
-                        className="card-hover rounded-2xl p-4 text-left group transition"
+                      <button key={subj.id} onClick={() => openSubject(subj)}
+                        className="card-hover rounded-2xl p-4 text-left transition"
                         style={card}>
-                        {s?.img && (
-                          <div className="w-full h-20 rounded-xl overflow-hidden mb-3">
-                            <img src={s.img} alt="" className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white"
+                            style={{ background: color }}>{initials(subj.name)}</div>
+                          <div>
+                            <div className="text-sm font-semibold" style={{ color: "#0f172a" }}>{subj.name}</div>
+                            <div className="text-xs" style={{ color: "#94a3b8" }}>{subjectNotes(subj.id).length} notes</div>
                           </div>
-                        )}
-                        <span className="pill mb-2 inline-block" style={{ background:s?.bg, color:s?.color, border:`1.5px solid ${s?.border}` }}>{s?.name}</span>
-                        <div className="text-sm font-semibold mb-1 group-hover:text-indigo-600 transition" style={{ color:"#0f172a" }}>{n.title}</div>
-                        <div className="text-xs leading-relaxed line-clamp-3" style={{ color:"#94a3b8" }}>{n.preview}</div>
-                        <div className="text-[11px] mt-3" style={{ color:"#cbd5e1" }}>{n.date}</div>
+                        </div>
                       </button>
                     );
                   })}
                 </div>
               )}
-            </div>
-          )}
 
-          {/* ── NOTE DETAIL ── */}
-          {page==="notedetail" && renderNoteDetail()}
-
-          {/* ── STUDY PLAN ── */}
-          {page==="studyplan" && (
-            <div className="fade-up p-6">
-              <div className="max-w-5xl mx-auto">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-6">
-                  <div>
-                    <h2 className="text-3xl font-bold" style={{ color:"#0f172a" }}>Study Plan 📅</h2>
-                    <p className="text-sm mt-1" style={{ color:"#64748b" }}>A personalised plan based on your subjects and notes.</p>
+              {/* recent notes */}
+              {notes.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: "#475569" }}>Recent Notes</h2>
+                    <button onClick={() => setView("allnotes")} className="text-xs font-semibold" style={{ color: "#6366f1" }}>View all</button>
                   </div>
-                  <button onClick={()=>go("notes")} className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition"
-                    style={{ background:"#fff", border:"1.5px solid #e2e8f0", color:"#64748b" }}>
-                    <IconArrowLeft size={16} /> Back to notes
-                  </button>
-                </div>
-                <div className="grid gap-4 xl:grid-cols-3">
-                  {[
-                    {
-                      title:"This week", icon:IconBolt, color:"#6366f1",
-                      content: [
-                        <>Review your latest notes on <b style={{color:"#0f172a"}}>{subjects[0]?.name || "Internet Programming"}</b>.</>,
-                        <>Complete one quiz for <b style={{color:"#0f172a"}}>{subjects[1]?.name || "Data Structures"}</b>.</>,
-                        <>Turn two strong definitions into flashcards for <b style={{color:"#0f172a"}}>{subjects[2]?.name || "Software Engineering"}</b>.</>,
-                      ]
-                    },
-                    {
-                      title:"Daily focus", icon:IconTarget, color:"#06b6d4",
-                      subjects: subjects.slice(0,3)
-                    },
-                    {
-                      title:"Next goals", icon:IconTrophy, color:"#10b981",
-                      goals: [
-                        { t:"Create 3 cards", d:"Use flashcards to memorize key terms." },
-                        { t:"Practice 1 quiz", d:"Pick a subject with fewer notes." },
-                        { t:"Review recent scans", d:"Add uploaded notes to the summary list." },
-                      ]
-                    },
-                  ].map((col, i) => (
-                    <div key={i} className="rounded-3xl p-6" style={card}>
-                      <div className="flex items-center gap-2 mb-5">
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background:`${col.color}15` }}>
-                          <col.icon size={16} style={{ color:col.color }} />
+                  <div className="space-y-2">
+                    {notes.slice(0, 4).map(n => (
+                      <button key={n.id} onClick={() => openNote(n)}
+                        className="w-full card-hover rounded-2xl p-4 text-left transition"
+                        style={card}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-semibold" style={{ color: "#0f172a" }}>{n.title}</span>
+                          <span className="text-[10px]" style={{ color: "#94a3b8" }}>{timeAgo(n.updated_at)}</span>
                         </div>
-                        <div className="text-xs font-bold uppercase tracking-wider" style={{ color:"#475569" }}>{col.title}</div>
+                        <p className="text-xs line-clamp-1" style={{ color: "#94a3b8" }}>{n.content.split("\n").slice(1).join(" ").trim() || "No preview"}</p>
+                        {n.subjects && (
+                          <span className="inline-block mt-2 text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: `${colorFor(n.subjects.name)}15`, color: colorFor(n.subjects.name) }}>
+                            {n.subjects.name}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── ALL NOTES ── */}
+        {view === "allnotes" && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-4 shrink-0" style={{ borderBottom: "1px solid #e2e8f0", background: "rgba(255,255,255,0.9)" }}>
+              <h1 className="text-base font-bold flex-1" style={{ color: "#0f172a" }}>All Notes</h1>
+              <div className="relative">
+                <IconSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#94a3b8" }} />
+                <input value={noteSearch} onChange={e => setNoteSearch(e.target.value)} placeholder="Search notes…"
+                  className="rounded-xl pl-8 pr-4 py-2 text-sm outline-none w-48"
+                  style={{ background: "#f8faff", border: "1.5px solid #e2e8f0", color: "#0f172a" }}
+                  onFocus={onFocus} onBlur={onBlur} />
+              </div>
+              <button onClick={() => openNewNote()}
+                className="flex items-center gap-2 text-white text-sm font-semibold px-4 py-2 rounded-xl"
+                style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 14px rgba(99,102,241,0.25)" }}>
+                <IconPlus size={14} /> New Note
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {filteredAllNotes.length === 0 ? (
+                <Empty icon={IconNote} text="No notes found" sub="Create your first note to get started." action={() => openNewNote()} actionLabel="New Note" />
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  {filteredAllNotes.map(n => (
+                    <button key={n.id} onClick={() => openNote(n)}
+                      className="card-hover rounded-2xl p-4 text-left transition"
+                      style={card}>
+                      <div className="text-sm font-semibold mb-1 line-clamp-1" style={{ color: "#0f172a" }}>{n.title}</div>
+                      <p className="text-xs line-clamp-3 mb-3" style={{ color: "#94a3b8" }}>{n.content.split("\n").slice(1).join(" ").trim() || n.content}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px]" style={{ color: "#cbd5e1" }}>{timeAgo(n.updated_at)}</span>
+                        {n.subjects && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: `${colorFor(n.subjects.name)}15`, color: colorFor(n.subjects.name) }}>
+                            {n.subjects.name}
+                          </span>
+                        )}
                       </div>
-                      {col.content && <div className="space-y-3">{col.content.map((c,j) => <p key={j} className="text-sm leading-relaxed" style={{ color:"#64748b" }}>{c}</p>)}</div>}
-                      {col.subjects && <div className="space-y-2">{col.subjects.map(s => (
-                        <div key={s.id} className="rounded-2xl p-3" style={{ background:"#f8faff", border:"1.5px solid #e2e8f0" }}>
-                          <div className="text-sm font-semibold mb-0.5" style={{ color:"#0f172a" }}>{s.name}</div>
-                          <div className="text-xs" style={{ color:"#94a3b8" }}>{s.notes} notes · Updated {s.updated}</div>
-                        </div>
-                      ))}</div>}
-                      {col.goals && <div className="space-y-2">{col.goals.map((g,j) => (
-                        <div key={j} className="rounded-2xl p-3" style={{ background:"#f8faff", border:"1.5px solid #e2e8f0" }}>
-                          <div className="text-sm font-semibold" style={{ color:"#0f172a" }}>{g.t}</div>
-                          <div className="text-xs mt-0.5" style={{ color:"#94a3b8" }}>{g.d}</div>
-                        </div>
-                      ))}</div>}
-                    </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── NOTE EDITOR ── */}
+        {view === "newnote" && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* topbar */}
+            <div className="flex items-center gap-3 px-6 py-3 shrink-0" style={{ borderBottom: "1px solid #e2e8f0", background: "rgba(255,255,255,0.9)" }}>
+              <button onClick={() => {
+                if (activeSubject) { setView("subject"); setNotesPanel(true); }
+                else setView("allnotes");
+              }} className="flex items-center gap-1.5 text-sm transition" style={{ color: "#94a3b8" }}
+                onMouseEnter={e => e.currentTarget.style.color = "#6366f1"}
+                onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}>
+                <IconArrowLeft size={16} /> Back
+              </button>
+              <span className="flex-1 text-sm font-medium truncate" style={{ color: "#64748b" }}>
+                {editNote.id ? "Edit note" : "New note"}
+                {activeSubject && <span style={{ color: "#94a3b8" }}> · {activeSubject.name}</span>}
+              </span>
+              {noteError && <span className="text-xs" style={{ color: "#f43f5e" }}>{noteError}</span>}
+              {editNote.id && (
+                <button onClick={() => deleteNote({ id: editNote.id, title: editNote.title })}
+                  className="p-1.5 rounded-lg transition" style={{ color: "#f43f5e" }}>
+                  <IconTrash size={15} />
+                </button>
+              )}
+              <button onClick={saveNote} disabled={savingNote}
+                className="flex items-center gap-2 text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
+                style={{ background: savingNote ? "#94a3b8" : "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                {savingNote ? <IconLoader2 size={14} className="animate-spin" /> : <IconCheck size={14} />}
+                Save
+              </button>
+            </div>
+
+            {/* editor */}
+            <div className="flex flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-8 max-w-3xl mx-auto w-full">
+                {/* auto title preview */}
+                <div className="text-xs mb-3 font-medium" style={{ color: "#94a3b8" }}>
+                  Title: <span style={{ color: "#6366f1" }}>{firstLine(editNote.content) || "First line becomes the title"}</span>
+                </div>
+                <textarea
+                  autoFocus
+                  value={editNote.content}
+                  onChange={e => { setEditNote(prev => ({ ...prev, content: e.target.value })); setNoteError(""); }}
+                  placeholder={"Start writing...\n\nThe first line becomes your note title automatically."}
+                  className="w-full outline-none resize-none text-sm leading-8"
+                  style={{ background: "transparent", color: "#0f172a", minHeight: "60vh", fontFamily: "inherit" }}
+                />
+              </div>
+
+              {/* AI tools panel */}
+              <div className="w-52 shrink-0 p-4 overflow-y-auto" style={{ borderLeft: "1px solid #e2e8f0", background: "#fafbff" }}>
+                <div className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "#94a3b8" }}>AI Tools</div>
+                <div className="space-y-2">
+                  {[
+                    { label: "Summarise", icon: IconFileText, type: "summary" },
+                    { label: "Explain simply", icon: IconBulb, type: "explain" },
+                    { label: "Generate quiz", icon: IconHelpCircle, type: "quiz" },
+                    { label: "Flashcards", icon: IconLayoutGrid, type: "flashcards" },
+                  ].map(tool => (
+                    <button key={tool.type} onClick={() => runAI(tool.type)} disabled={aiLoading}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs transition text-left"
+                      style={{ border: "1.5px solid #e2e8f0", color: "#475569", background: "#fff" }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = "#6366f1"; e.currentTarget.style.color = "#6366f1"; e.currentTarget.style.background = "rgba(99,102,241,0.04)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.color = "#475569"; e.currentTarget.style.background = "#fff"; }}>
+                      {aiLoading ? <IconLoader2 size={13} className="animate-spin" /> : <tool.icon size={13} />}
+                      {tool.label}
+                    </button>
                   ))}
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* ── SUBJECTS ── */}
-          {page==="subjects" && (
-            <div className="fade-up p-6">
-              <div className="grid grid-cols-3 gap-4">
-                {subjects.map(s => (
-                  <div key={s.id} className="card-hover relative rounded-2xl overflow-hidden cursor-pointer group transition"
-                    style={{ border:`1.5px solid ${s.border}`, background:"#fff", boxShadow:"0 2px 8px rgba(15,23,42,0.06)" }}>
-                    <div className="relative h-36">
-                      <img src={s.img} alt={s.name} className="w-full h-full object-cover transition group-hover:scale-105 duration-500" />
-                      <div className="absolute inset-0" style={{ background:`linear-gradient(to bottom, transparent, ${s.color}BB)` }} />
-                      <div className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-lg"
-                        style={{ background:s.color }}>{s.abbr}</div>
-                    </div>
-                    <div className="p-4">
-                      <div className="text-sm font-bold mb-1" style={{ color:"#0f172a" }}>{s.name}</div>
-                      <div className="text-xs mb-3" style={{ color:"#94a3b8" }}>{s.notes} notes · Updated {s.updated}</div>
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                        <button className="flex-1 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition"
-                          style={{ border:"1.5px solid #e2e8f0", color:"#64748b" }}>
-                          <IconEdit size={11} />Edit
-                        </button>
-                        <button onClick={()=>setSubjects(subjects.filter(x=>x.id!==s.id))}
-                          className="flex-1 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition"
-                          style={{ border:"1.5px solid rgba(244,63,94,0.2)", color:"#f43f5e", background:"rgba(244,63,94,0.05)" }}>
-                          <IconTrash size={11} />Remove
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <button onClick={()=>setAddSubjM(true)}
-                  className="card-hover rounded-2xl flex flex-col items-center justify-center gap-3 h-56 transition"
-                  style={{ border:"2px dashed #e2e8f0", color:"#cbd5e1" }}
-                  onMouseEnter={e=>{ e.currentTarget.style.borderColor="rgba(99,102,241,0.35)"; e.currentTarget.style.color="#6366f1"; e.currentTarget.style.background="rgba(99,102,241,0.04)"; }}
-                  onMouseLeave={e=>{ e.currentTarget.style.borderColor="#e2e8f0"; e.currentTarget.style.color="#cbd5e1"; e.currentTarget.style.background=""; }}>
-                  <IconPlus size={28} /><span className="text-sm font-semibold">Add subject</span>
-                </button>
+        {/* ── SUBJECT VIEW ── */}
+        {view === "subject" && activeSubject && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+
+            {/* subject topbar */}
+            <div className="flex items-center gap-3 px-5 py-3 shrink-0" style={{ borderBottom: "1px solid #e2e8f0", background: "rgba(255,255,255,0.95)" }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white shrink-0"
+                style={{ background: activeSubject.colour || colorFor(activeSubject.name) }}>
+                {initials(activeSubject.name)}
               </div>
-            </div>
-          )}
+              <span className="font-semibold text-sm flex-1" style={{ color: "#0f172a" }}>{activeSubject.name}</span>
 
-          {/* ── QUIZ ── */}
-          {page==="quiz" && (
-            <div className="fade-up p-6">
-              {!quizSubjId ? (
-                <div className="max-w-2xl mx-auto">
-                  <div className="text-center mb-8">
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
-                      style={{ background:"linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow:"0 6px 24px rgba(99,102,241,0.30)" }}>
-                      <IconHelpCircle size={28} className="text-white" />
-                    </div>
-                    <h2 className="text-xl font-bold mb-1" style={{ color:"#0f172a" }}>Pick a subject to quiz</h2>
-                    <p className="text-sm" style={{ color:"#64748b" }}>Questions are tailored per subject</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {subjects.filter(s => QUIZ_BANK[s.id]).map(s => (
-                      <button key={s.id} onClick={()=>{ setQuizSubjId(s.id); setQuizA({}); }}
-                        className="card-hover relative rounded-2xl overflow-hidden text-left group transition"
-                        style={{ border:`1.5px solid ${s.border}`, background:"#fff" }}>
-                        <div className="relative h-20">
-                          <img src={s.img} alt="" className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
-                          <div className="absolute inset-0" style={{ background:`linear-gradient(to right, ${s.color}55, transparent)` }} />
-                        </div>
-                        <div className="p-4">
-                          <div className="flex items-center gap-2">
-                            <span className="pill" style={{ background:s.bg, color:s.color, border:`1.5px solid ${s.border}` }}>{s.abbr}</span>
-                            <span className="text-sm font-semibold group-hover:text-indigo-600 transition" style={{ color:"#0f172a" }}>{s.name}</span>
+              {/* tab switcher */}
+              <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "#f1f5f9" }}>
+                {[
+                  { id: "chat", icon: IconMessageCircle, label: "Chat" },
+                  { id: "quiz", icon: IconHelpCircle, label: "Quiz" },
+                  { id: "studyplan", icon: IconCalendar, label: "Plan" },
+                ].map(tab => (
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition"
+                    style={{
+                      background: activeTab === tab.id ? "#fff" : "transparent",
+                      color: activeTab === tab.id ? "#6366f1" : "#64748b",
+                      boxShadow: activeTab === tab.id ? "0 1px 4px rgba(15,23,42,0.08)" : "none",
+                    }}>
+                    <tab.icon size={13} /> {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* notes panel toggle */}
+              <button onClick={() => setNotesPanel(!notesPanel)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition"
+                style={{ background: notesPanel ? "rgba(99,102,241,0.08)" : "#f1f5f9", color: notesPanel ? "#6366f1" : "#64748b", border: notesPanel ? "1.5px solid rgba(99,102,241,0.2)" : "1.5px solid transparent" }}>
+                <IconNote size={13} /> Notes {subjectNotes(activeSubject.id).length > 0 && `(${subjectNotes(activeSubject.id).length})`}
+              </button>
+            </div>
+
+            <div className="flex flex-1 overflow-hidden">
+
+              {/* ── CHAT TAB ── */}
+              {activeTab === "chat" && (
+                <div className="flex-1 flex flex-col overflow-hidden"
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={handleFileDrop}>
+
+                  {/* messages */}
+                  <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+                    {currentChats.length === 0 && (
+                      <Empty icon={IconMessageCircle} text={`Chat about ${activeSubject.name}`}
+                        sub="Ask questions, get explanations, or discuss your notes. Your conversation is saved." />
+                    )}
+                    {currentChats.map((msg, i) => (
+                      <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                        {msg.role === "assistant" && (
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mr-2 mt-0.5"
+                            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                            <IconSparkles size={12} className="text-white" />
                           </div>
-                          <p className="text-xs mt-1" style={{ color:"#94a3b8" }}>{QUIZ_BANK[s.id]?.length} questions</p>
+                        )}
+                        <div className="max-w-lg">
+                          {msg.file_name && (
+                            <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-xl mb-1"
+                              style={{ background: "#f1f5f9", color: "#64748b" }}>
+                              <IconUpload size={12} /> {msg.file_name}
+                            </div>
+                          )}
+                          <div className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === "user" ? "chat-bubble-user" : "chat-bubble-bot"}`}>
+                            {msg.content}
+                          </div>
+                          {msg.role === "assistant" && (
+                            <div className="flex gap-2 mt-1.5 px-1">
+                              <button onClick={() => navigator.clipboard.writeText(msg.content)}
+                                className="flex items-center gap-1 text-[10px] transition" style={{ color: "#94a3b8" }}
+                                onMouseEnter={e => e.currentTarget.style.color = "#6366f1"}
+                                onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}>
+                                <IconCopy size={10} /> Copy
+                              </button>
+                              <button onClick={() => openNewNote(activeSubject.id)}
+                                className="flex items-center gap-1 text-[10px] transition" style={{ color: "#94a3b8" }}
+                                onMouseEnter={e => e.currentTarget.style.color = "#6366f1"}
+                                onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}>
+                                <IconPlus size={10} /> Add to notes
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      </button>
+                      </div>
                     ))}
+                    {aiLoading && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                          style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                          <IconSparkles size={12} className="text-white" />
+                        </div>
+                        <div className="px-4 py-3 rounded-2xl text-sm chat-bubble-bot">
+                          <div className="flex gap-1">
+                            {[0,1,2].map(i => (
+                              <div key={i} className="w-1.5 h-1.5 rounded-full typing-dot" style={{ background: "#94a3b8", animationDelay: `${i * 0.2}s` }} />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+
+                  {/* input */}
+                  <div className="px-5 pb-5 pt-3 shrink-0" style={{ borderTop: "1px solid #e2e8f0" }}>
+                    <div className="flex gap-2 items-end rounded-2xl p-2" style={{ background: "#fff", border: "1.5px solid #e2e8f0", boxShadow: "0 2px 8px rgba(15,23,42,0.06)" }}>
+                      <button onClick={() => fileRef.current?.click()}
+                        className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition"
+                        style={{ background: "#f8faff", color: "#6366f1" }}>
+                        <IconPlus size={16} />
+                      </button>
+                      <input ref={fileRef} type="file" className="hidden"
+                        accept="image/*,.pdf,.pptx"
+                        onChange={handleFileDrop} />
+                      <textarea
+                        value={chatInput}
+                        onChange={e => setChatInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                        placeholder={`Message ${activeSubject.name}…`}
+                        rows={1}
+                        className="flex-1 outline-none resize-none text-sm py-1.5"
+                        style={{ background: "transparent", color: "#0f172a", maxHeight: "120px" }}
+                      />
+                      <button onClick={() => sendMessage()} disabled={!chatInput.trim() || aiLoading}
+                        className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition"
+                        style={{ background: chatInput.trim() ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "#e2e8f0", color: chatInput.trim() ? "#fff" : "#94a3b8" }}>
+                        <IconSend size={14} />
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-center mt-2" style={{ color: "#cbd5e1" }}>Drop images, PDFs or PPTX files · Enter to send · Shift+Enter for new line</p>
                   </div>
                 </div>
-              ) : (
-                <div className="max-w-2xl mx-auto">
-                  <div className="flex items-center justify-between mb-5">
-                    <button onClick={()=>setQuizSubjId(null)} className="flex items-center gap-2 text-sm transition" style={{ color:"#94a3b8" }}>
-                      <IconArrowLeft size={16} /> All subjects
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium" style={{ color:"#475569" }}>{quizSubject?.name}</span>
-                      <button onClick={()=>setQuizA({})} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl transition"
-                        style={{ border:"1.5px solid #e2e8f0", color:"#64748b" }}>
-                        <IconRefresh size={14} /> Restart
-                      </button>
-                    </div>
-                  </div>
+              )}
 
-                  {Object.keys(quizA).length === currentQuiz.length && currentQuiz.length > 0 && (
-                    <div className="rounded-2xl p-4 mb-4 flex items-center gap-3" style={{ background:"rgba(99,102,241,0.06)", border:"1.5px solid rgba(99,102,241,0.2)" }}>
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background:"rgba(99,102,241,0.12)" }}>
-                        <IconTrophy size={18} style={{ color:"#6366f1" }} />
+              {/* ── QUIZ TAB ── */}
+              {activeTab === "quiz" && (
+                <div className="flex-1 overflow-y-auto p-6">
+                  {!quizData ? (
+                    <div className="max-w-xl mx-auto">
+                      <Empty icon={IconHelpCircle} text="No quiz yet"
+                        sub="Open a note and click Generate Quiz, or generate one from your subject notes below." />
+                      <div className="mt-4 space-y-3">
+                        {subjectNotes(activeSubject.id).slice(0, 3).map(n => (
+                          <button key={n.id} onClick={() => { openNote(n); }}
+                            className="w-full card-hover rounded-2xl p-4 text-left transition"
+                            style={card}>
+                            <div className="text-sm font-semibold" style={{ color: "#0f172a" }}>{n.title}</div>
+                            <p className="text-xs mt-1 line-clamp-1" style={{ color: "#94a3b8" }}>{n.content.slice(0, 80)}</p>
+                          </button>
+                        ))}
                       </div>
-                      <div>
-                        <div className="text-sm font-bold" style={{ color:"#0f172a" }}>
-                          Score: {currentQuiz.filter((q,i)=>quizA[i]===q.ans).length} / {currentQuiz.length}
+                    </div>
+                  ) : (
+                    <div className="max-w-2xl mx-auto">
+                      <div className="flex items-center justify-between mb-5">
+                        <h2 className="text-base font-bold" style={{ color: "#0f172a" }}>Quiz</h2>
+                        <button onClick={() => { setQuizData(null); setQuizAnswers({}); }}
+                          className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl transition"
+                          style={{ border: "1.5px solid #e2e8f0", color: "#64748b" }}>
+                          <IconRefresh size={14} /> Reset
+                        </button>
+                      </div>
+                      {Object.keys(quizAnswers).length === quizData.length && (
+                        <div className="rounded-2xl p-4 mb-4 flex items-center gap-3"
+                          style={{ background: "rgba(99,102,241,0.06)", border: "1.5px solid rgba(99,102,241,0.2)" }}>
+                          <IconTrophy size={18} style={{ color: "#6366f1" }} />
+                          <div>
+                            <div className="text-sm font-bold" style={{ color: "#0f172a" }}>
+                              Score: {quizData.filter((q, i) => quizAnswers[i] === q.answer).length} / {quizData.length}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-xs" style={{ color:"#64748b" }}>
-                          {currentQuiz.filter((q,i)=>quizA[i]===q.ans).length === currentQuiz.length ? "Perfect! 🎉" : "Keep practising!"}
-                        </div>
+                      )}
+                      <div className="space-y-4">
+                        {quizData.map((q, qi) => (
+                          <div key={qi} className="rounded-2xl p-5" style={card}>
+                            <div className="text-sm font-semibold mb-4" style={{ color: "#0f172a" }}>{qi + 1}. {q.question}</div>
+                            {q.options ? (
+                              <div className="space-y-2">
+                                {q.options.map((opt, oi) => {
+                                  const answered = quizAnswers[qi] !== undefined;
+                                  const selected = quizAnswers[qi] === oi;
+                                  const correct  = oi === q.answer;
+                                  let st = {};
+                                  if (answered && selected && correct)  st = { borderColor: "#10b981", background: "rgba(16,185,129,0.07)", color: "#059669", fontWeight: 600 };
+                                  if (answered && selected && !correct) st = { borderColor: "#f43f5e", background: "rgba(244,63,94,0.07)", color: "#f43f5e" };
+                                  if (answered && !selected && correct) st = { borderColor: "#10b981", background: "rgba(16,185,129,0.07)", color: "#059669", opacity: 0.5 };
+                                  return (
+                                    <button key={oi} disabled={answered} onClick={() => setQuizAnswers({ ...quizAnswers, [qi]: oi })}
+                                      className="quiz-opt w-full text-left px-4 py-2.5 rounded-xl text-sm"
+                                      style={{ ...st, cursor: answered ? "default" : "pointer" }}>
+                                      {opt}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <textarea rows={3} placeholder="Type your answer…" className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none"
+                                style={{ background: "#f8faff", border: "1.5px solid #e2e8f0", color: "#0f172a" }} />
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
+                </div>
+              )}
 
-                  <div className="space-y-4">
-                    {currentQuiz.map((q, qi) => (
-                      <div key={qi} className="rounded-2xl p-5" style={card}>
-                        <div className="text-sm font-semibold mb-4" style={{ color:"#0f172a" }}>{qi+1}. {q.q}</div>
-                        <div className="space-y-2">
-                          {q.opts.map((opt, oi) => {
-                            const answered = quizA[qi]!==undefined;
-                            const selected = quizA[qi]===oi;
-                            const correct  = oi===q.ans;
-                            let extraStyle = {};
-                            if (answered && selected && correct)  extraStyle = { borderColor:"#10b981", background:"rgba(16,185,129,0.07)", color:"#059669", fontWeight:600 };
-                            if (answered && selected && !correct) extraStyle = { borderColor:"#f43f5e", background:"rgba(244,63,94,0.07)",  color:"#f43f5e" };
-                            if (answered && !selected && correct) extraStyle = { borderColor:"#10b981", background:"rgba(16,185,129,0.07)", color:"#059669", opacity:0.5 };
-                            return (
-                              <button key={oi} disabled={answered} onClick={()=>setQuizA({...quizA,[qi]:oi})}
-                                className="quiz-opt w-full text-left px-4 py-2.5 rounded-xl text-sm"
-                                style={{ ...extraStyle, cursor: answered ? "default" : "pointer" }}>
-                                {opt}
-                              </button>
-                            );
-                          })}
+              {/* ── STUDY PLAN TAB ── */}
+              {activeTab === "studyplan" && (
+                <div className="flex-1 overflow-y-auto p-6">
+                  <div className="max-w-2xl mx-auto">
+                    <h2 className="text-base font-bold mb-5" style={{ color: "#0f172a" }}>Study Plan for {activeSubject.name}</h2>
+                    <div className="grid gap-4">
+                      {[
+                        { title: "This week", icon: IconBolt, color: "#6366f1", items: ["Review all notes in this subject", "Complete at least one quiz", "Create flashcards for key terms"] },
+                        { title: "Daily focus", icon: IconTarget, color: "#06b6d4", items: subjectNotes(activeSubject.id).slice(0, 3).map(n => `Review: ${n.title}`) },
+                        { title: "Goals", icon: IconTrophy, color: "#10b981", items: ["Summarise each note using AI", "Test yourself with the quiz", "Use the chat to ask questions"] },
+                      ].map((col, i) => (
+                        <div key={i} className="rounded-2xl p-5" style={card}>
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${col.color}15` }}>
+                              <col.icon size={15} style={{ color: col.color }} />
+                            </div>
+                            <span className="text-sm font-bold" style={{ color: "#0f172a" }}>{col.title}</span>
+                          </div>
+                          <div className="space-y-2">
+                            {col.items.length === 0 ? (
+                              <p className="text-xs" style={{ color: "#94a3b8" }}>Add notes to this subject to get a personalised plan.</p>
+                            ) : col.items.map((item, j) => (
+                              <div key={j} className="flex items-start gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: col.color }} />
+                                <p className="text-sm" style={{ color: "#475569" }}>{item}</p>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* ── FLASHCARDS ── */}
-          {page==="flashcards" && (
-            <div className="fade-up p-6">
-              {!fcSubjId ? (
-                <div className="max-w-2xl mx-auto">
-                  <div className="text-center mb-8">
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
-                      style={{ background:"linear-gradient(135deg, #06b6d4, #6366f1)", boxShadow:"0 6px 24px rgba(6,182,212,0.25)" }}>
-                      <IconLayoutGrid size={28} className="text-white" />
-                    </div>
-                    <h2 className="text-xl font-bold mb-1" style={{ color:"#0f172a" }}>Pick a subject</h2>
-                    <p className="text-sm" style={{ color:"#64748b" }}>Flashcards are grouped per subject · click to flip</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {subjects.filter(s => FC_BANK[s.id]).map(s => (
-                      <button key={s.id} onClick={()=>{ setFcSubjId(s.id); setFlipped({}); }}
-                        className="card-hover relative rounded-2xl overflow-hidden text-left group transition"
-                        style={{ border:`1.5px solid ${s.border}`, background:"#fff" }}>
-                        <div className="relative h-20">
-                          <img src={s.img} alt="" className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
-                          <div className="absolute inset-0" style={{ background:`linear-gradient(to right, ${s.color}55, transparent)` }} />
-                        </div>
-                        <div className="p-4">
-                          <div className="flex items-center gap-2">
-                            <span className="pill" style={{ background:s.bg, color:s.color, border:`1.5px solid ${s.border}` }}>{s.abbr}</span>
-                            <span className="text-sm font-semibold group-hover:text-indigo-600 transition" style={{ color:"#0f172a" }}>{s.name}</span>
-                          </div>
-                          <p className="text-xs mt-1" style={{ color:"#94a3b8" }}>{FC_BANK[s.id]?.length} cards</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="max-w-2xl mx-auto">
-                  <div className="flex items-center justify-between mb-5">
-                    <button onClick={()=>setFcSubjId(null)} className="flex items-center gap-2 text-sm transition" style={{ color:"#94a3b8" }}>
-                      <IconArrowLeft size={16} /> All subjects
+              {/* ── NOTES PANEL (slide-in right) ── */}
+              {notesPanel && (
+                <div className="w-64 shrink-0 flex flex-col overflow-hidden" style={{ borderLeft: "1px solid #e2e8f0", background: "#fafbff" }}>
+                  <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "#94a3b8" }}>Notes</span>
+                    <button onClick={() => openNewNote(activeSubject.id)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition"
+                      style={{ background: "rgba(99,102,241,0.08)", color: "#6366f1" }}>
+                      <IconPlus size={13} />
                     </button>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm" style={{ color:"#475569" }}>{subjects.find(s=>s.id===fcSubjId)?.name} · click to flip</span>
-                      <button onClick={()=>setFlipped({})} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl transition"
-                        style={{ border:"1.5px solid #e2e8f0", color:"#64748b" }}>
-                        <IconRefresh size={14} /> Reset
-                      </button>
-                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    {currentFC.map((fc, i) => (
-                      <div key={i} className={`fc-card cursor-pointer ${flipped[i]?"flipped":""}`} onClick={()=>setFlipped({...flipped,[i]:!flipped[i]})}>
-                        <div className="fc-inner">
-                          <div className="fc-front">
-                            <span className="text-[10px] uppercase tracking-widest mb-2 font-semibold" style={{ color:"#94a3b8" }}>term</span>
-                            <span className="text-lg font-bold" style={{ color:"#0f172a" }}>{fc.term}</span>
-                            <span className="text-[10px] mt-3 font-medium" style={{ color:"#cbd5e1" }}>tap to flip</span>
-                          </div>
-                          <div className="fc-back">
-                            <span className="text-[10px] uppercase tracking-widest mb-2 font-semibold text-white/60">definition</span>
-                            <span className="text-sm text-white leading-relaxed">{fc.def}</span>
-                          </div>
-                        </div>
+                  <div className="flex-1 overflow-y-auto p-2">
+                    {subjectNotes(activeSubject.id).length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-xs" style={{ color: "#94a3b8" }}>No notes yet</p>
+                        <button onClick={() => openNewNote(activeSubject.id)}
+                          className="mt-3 text-xs font-medium" style={{ color: "#6366f1" }}>
+                          Add your first note
+                        </button>
                       </div>
-                    ))}
+                    ) : (
+                      subjectNotes(activeSubject.id).map(n => (
+                        <button key={n.id} onClick={() => openNote(n)}
+                          className="w-full text-left p-3 rounded-xl mb-1 transition"
+                          style={{ background: "transparent" }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.boxShadow = "0 1px 4px rgba(15,23,42,0.06)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.boxShadow = "none"; }}>
+                          <div className="text-xs font-semibold line-clamp-1 mb-0.5" style={{ color: "#0f172a" }}>{n.title}</div>
+                          <div className="text-[10px] line-clamp-2" style={{ color: "#94a3b8" }}>{n.content.split("\n").slice(1).join(" ").trim() || "No preview"}</div>
+                          <div className="text-[10px] mt-1.5" style={{ color: "#cbd5e1" }}>{timeAgo(n.updated_at)}</div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
             </div>
-          )}
-
-          {/* ── SCAN ── */}
-          {page==="scan" && (
-            <div className="fade-up p-6 max-w-xl mx-auto">
-              <input type="file" accept=".jpg,.jpeg,.png" id="scanFileInput" className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) setScannedText(`[Processing: ${file.name}]\n\nChapter 4 — Network Protocols\n\nHTTP is the foundation of data communication on the web. HTTPS adds SSL/TLS encryption to protect data in transit.`);
-                }} />
-              <div
-                className="rounded-2xl p-12 text-center mb-4 cursor-pointer transition group"
-                style={{ border:"2px dashed #e2e8f0", background:"#f8faff" }}
-                onClick={() => document.getElementById('scanFileInput')?.click()}
-                onMouseEnter={e=>{ e.currentTarget.style.borderColor="rgba(6,182,212,0.4)"; e.currentTarget.style.background="rgba(6,182,212,0.04)"; }}
-                onMouseLeave={e=>{ e.currentTarget.style.borderColor="#e2e8f0"; e.currentTarget.style.background="#f8faff"; }}>
-                <IconScan size={36} style={{ color:"#06b6d4", margin:"0 auto 12px" }} />
-                <p className="text-sm mb-1" style={{ color:"#64748b" }}>Drop an image here or <span style={{ color:"#06b6d4", fontWeight:600 }}>click to upload</span></p>
-                <p className="text-xs" style={{ color:"#94a3b8" }}>JPG, PNG — max 5MB</p>
-                <button
-                  className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition"
-                  style={{ background:"rgba(6,182,212,0.10)", color:"#06b6d4", border:"1.5px solid rgba(6,182,212,0.2)" }}
-                  onClick={e=>{ e.stopPropagation(); document.getElementById('scanFileInput')?.click(); }}>
-                  <IconPlus size={16} /> Upload file
-                </button>
-              </div>
-              <div className="rounded-2xl p-5" style={card}>
-                <div className="flex items-center gap-2 text-xs font-semibold mb-3" style={{ color:"#6366f1" }}>
-                  <IconSparkles size={14} /> Extracted text
-                </div>
-                <p className="text-sm leading-relaxed" style={{ color:"#64748b" }}>
-                  Chapter 4 — Network Protocols<br /><br />
-                  HTTP is the foundation of data communication on the web. HTTPS adds SSL/TLS encryption to protect data in transit.
-                </p>
-                <div className="flex gap-2 mt-4">
-                  <button
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-semibold rounded-xl transition"
-                    style={{ background:"linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow:"0 3px 10px rgba(99,102,241,0.25)" }}
-                    onClick={() => setNotes([{ id:Date.now(), sid:0, title:`Scanned: ${scannedText.split('\n')[0]}`, preview:scannedText.slice(0,80), date:"Just now", content:scannedText }, ...notes])}>
-                    <IconPlus size={14} /> Save as note
-                  </button>
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl transition"
-                    style={{ border:"1.5px solid #e2e8f0", color:"#64748b" }}>
-                    <IconCopy size={14} /> Copy
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── DICTIONARY ── */}
-          {page==="dictionary" && (
-            <div className="fade-up p-6 max-w-xl mx-auto">
-              <div className="relative mb-5">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color:"#94a3b8" }}><IconSearch size={16} /></span>
-                <input value={dictSearch} onChange={e=>setDictSearch(e.target.value)} placeholder="Look up any word…"
-                  className={`${inp} pl-10`} style={inpStyle} onFocus={onFocus} onBlur={onBlur} />
-              </div>
-              {[
-                { word:"algorithm",   ph:"/ˈælɡərɪðəm/",  pos:"noun", def:"A step-by-step procedure for solving a problem, especially by a computer.", ex:'"Sorting algorithms like quicksort have O(n log n) average complexity."' },
-                { word:"abstraction", ph:"/æbˈstrækʃən/", pos:"noun", def:"Hiding complex implementation details, showing only essential features." },
-              ].filter(w => w.word.toLowerCase().includes(dictSearch.toLowerCase())).map((w,i) => (
-                <div key={i} className="rounded-2xl p-5 mb-3" style={card}>
-                  <div className="text-lg font-bold mb-0.5" style={{ color:"#6366f1" }}>{w.word}</div>
-                  <div className="text-xs mb-3 font-medium" style={{ color:"#94a3b8" }}>{w.ph} · {w.pos}</div>
-                  <div className="text-sm leading-relaxed" style={{ color:"#475569" }}>{w.def}</div>
-                  {w.ex && <div className="text-xs italic mt-2 pl-3" style={{ color:"#94a3b8", borderLeft:"2px solid #e2e8f0" }}>{w.ex}</div>}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ── CHAT ── */}
-          {page==="chat" && (
-            <div className="fade-up p-6 max-w-2xl mx-auto flex flex-col h-full">
-              {/* Header card */}
-              <div className="rounded-2xl p-5 mb-5 flex items-center gap-3"
-                style={{ background:"linear-gradient(135deg, rgba(99,102,241,0.08), rgba(6,182,212,0.06))", border:"1.5px solid rgba(99,102,241,0.15)" }}>
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg"
-                  style={{ background:"linear-gradient(135deg, #6366f1, #06b6d4)", boxShadow:"0 4px 16px rgba(99,102,241,0.25)" }}>
-                  <IconMessageCircle size={22} className="text-white" />
-                </div>
-                <div>
-                  <div className="text-sm font-bold" style={{ color:"#0f172a" }}>LearnIt Tutor</div>
-                  <div className="text-xs" style={{ color:"#64748b" }}>Your AI study assistant · always here to help</div>
-                </div>
-              </div>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto mb-4 rounded-2xl p-5 flex flex-col gap-3" style={{ ...card, minHeight:"300px" }}>
-                {chatMessages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-center">
-                    <div>
-                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                        style={{ background:"rgba(99,102,241,0.08)" }}>
-                        <IconMessageCircle size={28} style={{ color:"#6366f1" }} />
-                      </div>
-                      <p className="font-semibold mb-1" style={{ color:"#0f172a" }}>Start a conversation!</p>
-                      <p className="text-xs" style={{ color:"#94a3b8" }}>Ask about notes, quizzes, flashcards, or study tips</p>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {chatMessages.map((m, i) => (
-                      <div key={i} className={`flex ${m.role==="user" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-xs px-4 py-3 text-sm leading-relaxed ${m.role==="user" ? "chat-bubble-user" : "chat-bubble-bot"}`}>
-                          {m.text}
-                        </div>
-                      </div>
-                    ))}
-                    <div ref={chatEndRef} />
-                  </>
-                )}
-              </div>
-
-              {/* Input bar */}
-              <div className="flex gap-2">
-                <input ref={fileInputRef} type="file" onChange={handleFileUpload} className="hidden" accept=".pdf,.doc,.docx,.jpg,.png,.txt" />
-                <button onClick={() => fileInputRef.current?.click()}
-                  className="w-11 h-11 rounded-xl flex items-center justify-center transition shrink-0"
-                  style={{ background:"#f8faff", border:"1.5px solid #e2e8f0", color:"#6366f1" }}>
-                  <IconPlus size={18} />
-                </button>
-                <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&sendChatMessage()}
-                  placeholder="Type your message…"
-                  className="flex-1 rounded-xl px-4 py-3 text-sm outline-none transition"
-                  style={{ background:"#f8faff", border:"1.5px solid #e2e8f0", color:"#0f172a" }}
-                  onFocus={onFocus} onBlur={onBlur} />
-                <button onClick={sendChatMessage} disabled={!chatInput.trim()}
-                  className="px-5 h-11 flex items-center justify-center gap-2 text-sm font-semibold rounded-xl transition"
-                  style={{ background: chatInput.trim() ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "#e2e8f0", color: chatInput.trim() ? "#fff" : "#94a3b8", boxShadow: chatInput.trim() ? "0 4px 14px rgba(99,102,241,0.30)" : "none", cursor: chatInput.trim() ? "pointer" : "not-allowed" }}>
-                  <IconSend size={16} />
-                </button>
-              </div>
-            </div>
-          )}
-        </main>
+          </div>
+        )}
       </div>
 
       {/* ══ ADD SUBJECT MODAL ══ */}
-      {addSubjM && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background:"rgba(15,23,42,0.5)", backdropFilter:"blur(8px)" }}>
+      {addSubjModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(8px)" }}>
           <div className="glass-strong rounded-3xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-base font-bold mb-4" style={{ color:"#0f172a" }}>Add New Subject</h3>
-            <input autoFocus value={newSubj} onChange={e=>setNewSubj(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addSubject()}
-              placeholder="e.g. Computer Science"
+            <h3 className="text-base font-bold mb-1" style={{ color: "#0f172a" }}>New Subject</h3>
+            <p className="text-xs mb-4" style={{ color: "#94a3b8" }}>Give it a clear name — this becomes your study space.</p>
+            {subjError && <p className="text-xs mb-3 font-medium" style={{ color: "#f43f5e" }}>{subjError}</p>}
+            <input autoFocus value={newSubjName} onChange={e => { setNewSubjName(e.target.value); setSubjError(""); }}
+              onKeyDown={e => e.key === "Enter" && addSubject()}
+              placeholder="e.g. Internet Programming"
               className={`${inp} mb-4`} style={inpStyle} onFocus={onFocus} onBlur={onBlur} />
             <div className="flex gap-2">
-              <button onClick={()=>{setAddSubjM(false);setNewSubj("");}}
+              <button onClick={() => { setAddSubjModal(false); setNewSubjName(""); setSubjError(""); }}
                 className="flex-1 py-2.5 rounded-xl text-sm font-medium transition"
-                style={{ border:"1.5px solid #e2e8f0", color:"#64748b" }}>Cancel</button>
-              <button onClick={addSubject}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition"
-                style={{ background:"linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow:"0 4px 14px rgba(99,102,241,0.25)" }}>Add</button>
+                style={{ border: "1.5px solid #e2e8f0", color: "#64748b" }}>Cancel</button>
+              <button onClick={addSubject} disabled={addingSubj}
+                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition flex items-center justify-center gap-2"
+                style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 14px rgba(99,102,241,0.25)" }}>
+                {addingSubj ? <IconLoader2 size={14} className="animate-spin" /> : null}
+                Add Subject
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ══ NEW NOTE MODAL ══ */}
-      {noteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background:"rgba(15,23,42,0.5)", backdropFilter:"blur(8px)" }}>
-          <div className="glass-strong rounded-3xl p-6 w-full max-w-lg mx-4">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-bold" style={{ color:"#0f172a" }}>New Note ✏️</h3>
-              <button onClick={()=>setNoteM(false)} className="transition p-1 rounded-lg"
-                style={{ color:"#94a3b8" }}
-                onMouseEnter={e=>{ e.currentTarget.style.background="rgba(244,63,94,0.08)"; e.currentTarget.style.color="#f43f5e"; }}
-                onMouseLeave={e=>{ e.currentTarget.style.background=""; e.currentTarget.style.color="#94a3b8"; }}>
-                <IconX size={18} />
+{/* AI RESULT MODAL */}
+      {aiResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(8px)" }}>
+          <div className="rounded-3xl p-6 w-full max-w-lg mx-4 flex flex-col"
+            style={{ background: "#fff", boxShadow: "0 20px 60px rgba(15,23,42,0.2)", maxHeight: "80vh" }}>
+
+            {/* header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                  <IconSparkles size={14} className="text-white" />
+                </div>
+                <h3 className="text-base font-bold capitalize" style={{ color: "#0f172a" }}>
+                  {aiResult.type === "summary" ? "Summary" : "Explanation"}
+                </h3>
+              </div>
+              <button onClick={() => setAiResult(null)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center transition"
+                style={{ background: "#f1f5f9", color: "#64748b" }}>
+                <IconX size={14} />
               </button>
             </div>
-            <div className="space-y-3">
-              <select value={newNote.subject} onChange={e=>setNewNote({...newNote,subject:e.target.value})}
-                className={inp} style={{ ...inpStyle, color: newNote.subject ? "#0f172a" : "#94a3b8" }}>
-                <option value="">Select subject…</option>
-                {subjects.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}
-              </select>
-              <input value={newNote.title} onChange={e=>setNewNote({...newNote,title:e.target.value})} placeholder="Note title…"
-                className={inp} style={inpStyle} onFocus={onFocus} onBlur={onBlur} />
-              <textarea value={newNote.content} onChange={e=>setNewNote({...newNote,content:e.target.value})} placeholder="Start writing…" rows={5}
-                className={inp + " resize-none"} style={inpStyle} onFocus={onFocus} onBlur={onBlur} />
+
+            {/* content */}
+            <div className="flex-1 overflow-y-auto rounded-2xl p-4 text-sm leading-7 whitespace-pre-wrap"
+              style={{ background: "#f8faff", border: "1.5px solid #e2e8f0", color: "#374151" }}>
+              {aiResult.content}
             </div>
+
+            {/* footer */}
             <div className="flex gap-2 mt-4">
-              <button onClick={()=>setNoteM(false)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium transition"
-                style={{ border:"1.5px solid #e2e8f0", color:"#64748b" }}>Cancel</button>
-              <button onClick={saveNote}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition"
-                style={{ background:"linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow:"0 4px 14px rgba(99,102,241,0.25)" }}>Save Note</button>
+              <button onClick={() => navigator.clipboard.writeText(aiResult.content)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition"
+                style={{ border: "1.5px solid #e2e8f0", color: "#64748b" }}>
+                <IconCopy size={13} /> Copy
+              </button>
+              <button onClick={() => setAiResult(null)}
+                className="flex-1 py-2 rounded-xl text-white text-sm font-semibold"
+                style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                Done
+              </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

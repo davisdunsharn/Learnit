@@ -1,9 +1,9 @@
-const express = require('express');
-const router = express.Router();
+const express  = require('express');
+const router   = express.Router();
+const verify   = require('../middleware/verifyToken');
+const upload   = require('../middleware/uploadMiddleware');
+const { extract } = require('../controllers/ocrController');
 
-// placeholder — fully implemented in Sprint 2
-router.get('/', (req, res) => {
-  res.json({ message: 'OCR routes coming in Sprint 2' });
-});
+router.post('/extract', verify, upload.single('image'), extract);
 
 module.exports = router;

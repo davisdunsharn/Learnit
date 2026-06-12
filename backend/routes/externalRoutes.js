@@ -1,9 +1,8 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
+const verify  = require('../middleware/verifyToken');
+const { define } = require('../controllers/externalController');
 
-// placeholder — fully implemented in Sprint 2
-router.get('/', (req, res) => {
-  res.json({ message: 'External routes coming in Sprint 2' });
-});
+router.get('/dictionary/:word', verify, define);
 
 module.exports = router;
