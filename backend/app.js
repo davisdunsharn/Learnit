@@ -1,3 +1,10 @@
+// Node < 22 has no native WebSocket, but @supabase/supabase-js (v2.106+) requires
+// one when createClient() initialises its realtime client — otherwise it throws,
+// which in verifyToken gets caught and surfaces as a 401 on every AI/OCR request.
+if (typeof globalThis.WebSocket === 'undefined') {
+  globalThis.WebSocket = require('ws');
+}
+
 const express = require('express');
 const cors    = require('cors');
 require('dotenv').config();

@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import api from "../api/axios";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   IconBook2, IconPlus, IconLogout, IconChevronDown, IconChevronRight,
   IconNote, IconFolder, IconSearch, IconX, IconSend, IconArrowLeft,
@@ -10,6 +12,38 @@ import {
   IconFileText, IconPhoto, IconMessageCircle, IconRefresh, IconTrophy,
   IconTarget, IconBolt, IconNotes, IconChevronLeft, IconPencil,
 } from "@tabler/icons-react";
+
+// ── markdown rendering (ChatGPT-style AI output) ─────────────────────────────
+const mdComponents = {
+  p:  (p) => <p className="mb-2 last:mb-0 leading-7" {...p} />,
+  strong: (p) => <strong className="font-semibold" style={{ color: "#0f172a" }} {...p} />,
+  ul: (p) => <ul className="list-disc pl-5 mb-2 space-y-1" {...p} />,
+  ol: (p) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...p} />,
+  li: (p) => <li className="leading-relaxed" {...p} />,
+  h1: (p) => <h1 className="text-base font-bold mt-3 mb-2 first:mt-0" style={{ color: "#0f172a" }} {...p} />,
+  h2: (p) => <h2 className="text-sm font-bold mt-3 mb-1.5 first:mt-0" style={{ color: "#0f172a" }} {...p} />,
+  h3: (p) => <h3 className="text-sm font-semibold mt-2 mb-1 first:mt-0" style={{ color: "#0f172a" }} {...p} />,
+  a:  (p) => <a className="underline" style={{ color: "#6366f1" }} target="_blank" rel="noreferrer" {...p} />,
+  blockquote: (p) => <blockquote className="border-l-2 pl-3 my-2" style={{ borderColor: "#c7d2fe", color: "#64748b" }} {...p} />,
+  hr: (p) => <hr className="my-3" style={{ borderColor: "#e2e8f0" }} {...p} />,
+  pre: (p) => <pre className="p-3 rounded-xl text-xs overflow-x-auto my-2" style={{ background: "#0f172a", color: "#e2e8f0" }} {...p} />,
+  code: ({ className, ...rest }) => (
+    <code className={className}
+      style={className
+        ? { background: "transparent", color: "inherit" }
+        : { background: "#eef2ff", color: "#4f46e5", padding: "1px 5px", borderRadius: 4, fontSize: "0.85em" }}
+      {...rest} />
+  ),
+  table: (p) => <table className="w-full text-xs my-2 border-collapse" {...p} />,
+  th: (p) => <th className="text-left font-semibold px-2 py-1" style={{ borderBottom: "1.5px solid #e2e8f0", color: "#0f172a" }} {...p} />,
+  td: (p) => <td className="px-2 py-1" style={{ borderBottom: "1px solid #f1f5f9", color: "#374151" }} {...p} />,
+};
+
+const AIText = ({ children }) => (
+  <div className="text-sm" style={{ color: "#374151" }}>
+    <Markdown remarkPlugins={[remarkGfm]} components={mdComponents}>{children || ""}</Markdown>
+  </div>
+);
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const COLORS = ["#6366f1","#06b6d4","#10b981","#f59e0b","#f43f5e","#8b5cf6","#ec4899","#14b8a6"];
@@ -342,8 +376,16 @@ Help the student understand concepts, answer questions, and study effectively. B
         }]);
       }
       if (type === "quiz") {
+        // surface the quiz in its subject's Quiz tab (the note editor has no quiz UI)
+        const subj = activeSubject || subjects.find(s => s.id === editNote.subject_id);
+        if (!subj) {
+          setAiLoading(false);
+          return alert("Add this note to a subject first — quizzes open in the subject's Quiz tab.");
+        }
         setQuizData(res.data.result);
         setQuizAnswers({});
+        setActiveSubject(subj);
+        setView("subject");
         setActiveTab("quiz");
       } else {
        setAiResult({ type, content: res.data.result });
@@ -823,8 +865,8 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
                               <IconUpload size={12} /> {msg.file_name}
                             </div>
                           )}
-                          <div className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === "user" ? "chat-bubble-user" : "chat-bubble-bot"}`}>
-                            {msg.content}
+                          <div className={`px-4 py-3 text-sm leading-relaxed ${msg.role === "user" ? "chat-bubble-user whitespace-pre-wrap" : "chat-bubble-bot"}`}>
+                            {msg.role === "assistant" ? <AIText>{msg.content}</AIText> : msg.content}
                           </div>
                           {msg.role === "assistant" && (
                             <div className="flex gap-2 mt-1.5 px-1">
@@ -1022,8 +1064,8 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
                         <p className="text-sm" style={{ color: "#64748b" }}>Building your personalised study plan…</p>
                       </div>
                     ) : studyPlan ? (
-                      <div className="rounded-2xl p-5 text-sm leading-7 whitespace-pre-wrap" style={{ ...card, color: "#374151" }}>
-                        {studyPlan}
+                      <div className="rounded-2xl p-5" style={card}>
+                        <AIText>{studyPlan}</AIText>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
@@ -1149,7 +1191,7 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
                   ))}
                 </div>
               ) : (
-                <div className="text-sm leading-7 whitespace-pre-wrap">{aiResult.content}</div>
+                <AIText>{aiResult.content}</AIText>
               )}
             </div>
 
