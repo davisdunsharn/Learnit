@@ -83,6 +83,8 @@ export default function Dashboard() {
   const [quizData, setQuizData]         = useState(null);
   const [quizLoading, setQuizLoading]   = useState(false);
   const [aiResult, setAiResult] = useState(null);
+  const [savedQuizzes, setSavedQuizzes] = useState([]);   // saved quizzes for active subject
+  const [savingQuiz, setSavingQuiz]     = useState(false);
 
   // file drop in chat
   const fileRef    = useRef(null);
@@ -122,14 +124,25 @@ export default function Dashboard() {
     setChats(prev => ({ ...prev, [subjectId]: data || [] }));
   }, [user]);
 
+  const loadSavedQuizzes = useCallback(async (subjectId) => {
+    if (!user || !subjectId) return;
+    const { data } = await supabase
+      .from("saved_quizzes")
+      .select("*")
+      .eq("subject_id", subjectId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    setSavedQuizzes(data || []);
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     Promise.all([loadSubjects(), loadNotes()]).finally(() => setLoading(false));
   }, [user, loadSubjects, loadNotes]);
 
   useEffect(() => {
-    if (activeSubject) loadChats(activeSubject.id);
-  }, [activeSubject, loadChats]);
+    if (activeSubject) { loadChats(activeSubject.id); loadSavedQuizzes(activeSubject.id); }
+  }, [activeSubject, loadChats, loadSavedQuizzes]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -313,6 +326,34 @@ Help the student understand concepts, answer questions, and study effectively. B
     setAiLoading(false);
   };
 
+  // ── saved quizzes ────────────────────────────────────────────────────────
+  const saveQuiz = async () => {
+    if (!quizData || !activeSubject) return;
+    setSavingQuiz(true);
+    const title = `${activeSubject.name} quiz · ${new Date().toLocaleDateString()}`;
+    const { data, error } = await supabase.from("saved_quizzes").insert([{
+      user_id: user.id,
+      subject_id: activeSubject.id,
+      title,
+      questions: quizData,
+    }]).select();
+    setSavingQuiz(false);
+    if (error) return alert("Couldn't save the quiz. Try again.");
+    if (data?.[0]) setSavedQuizzes(prev => [data[0], ...prev]);
+  };
+
+  const openSavedQuiz = (q) => {
+    setQuizData(q.questions);
+    setQuizAnswers({});
+    setActiveTab("quiz");
+  };
+
+  const deleteSavedQuiz = async (q) => {
+    if (!window.confirm(`Delete saved quiz "${q.title}"?`)) return;
+    await supabase.from("saved_quizzes").delete().eq("id", q.id);
+    setSavedQuizzes(prev => prev.filter(x => x.id !== q.id));
+  };
+
   // ── filtered notes ─────────────────────────────────────────────────────
   const subjectNotes = (subId) => notes.filter(n => n.subject_id === subId);
   const filteredAllNotes = notes.filter(n =>
@@ -346,12 +387,12 @@ Help the student understand concepts, answer questions, and study effectively. B
           <span className="syne text-lg font-bold" style={{ color: "#0f172a" }}>LearnIt</span>
         </div>
 
-        {/* new chat button */}
+        {/* dashboard button */}
         <div className="px-3 pt-3">
           <button onClick={() => { setActiveSubject(null); setView("home"); }}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition"
-            style={{ background: "rgba(99,102,241,0.06)", color: "#6366f1", border: "1.5px solid rgba(99,102,241,0.15)" }}>
-            <IconPlus size={14} /> New Chat
+            style={{ background: view === "home" ? "rgba(99,102,241,0.1)" : "rgba(99,102,241,0.06)", color: "#6366f1", border: "1.5px solid rgba(99,102,241,0.15)" }}>
+            <IconLayoutGrid size={14} /> Dashboard
           </button>
         </div>
 
@@ -443,9 +484,9 @@ Help the student understand concepts, answer questions, and study effectively. B
               <div className="text-xs font-semibold truncate capitalize" style={{ color: "#0f172a" }}>{userName}</div>
               <div className="text-[10px] truncate" style={{ color: "#94a3b8" }}>{user?.email}</div>
             </div>
-            <button onClick={logout} className="transition shrink-0 p-1 rounded-lg" style={{ color: "#cbd5e1" }}
+            <button onClick={logout} title="Log out" className="transition shrink-0 p-1 rounded-lg" style={{ color: "#64748b" }}
               onMouseEnter={e => { e.currentTarget.style.color = "#f43f5e"; e.currentTarget.style.background = "rgba(244,63,94,0.08)"; }}
-              onMouseLeave={e => { e.currentTarget.style.color = "#cbd5e1"; e.currentTarget.style.background = ""; }}>
+              onMouseLeave={e => { e.currentTarget.style.color = "#64748b"; e.currentTarget.style.background = ""; }}>
               <IconLogout size={14} />
             </button>
           </div>
@@ -810,7 +851,33 @@ Help the student understand concepts, answer questions, and study effectively. B
                     <div className="max-w-xl mx-auto">
                       <Empty icon={IconHelpCircle} text="No quiz yet"
                         sub="Open a note and click Generate Quiz, or generate one from your subject notes below." />
-                      <div className="mt-4 space-y-3">
+
+                      {/* saved quizzes */}
+                      {savedQuizzes.length > 0 && (
+                        <div className="mt-6">
+                          <h3 className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "#94a3b8" }}>Saved quizzes</h3>
+                          <div className="space-y-2">
+                            {savedQuizzes.map(q => (
+                              <div key={q.id} className="group flex items-center gap-2 card-hover rounded-2xl p-4 transition" style={card}>
+                                <button onClick={() => openSavedQuiz(q)} className="flex-1 text-left">
+                                  <div className="text-sm font-semibold" style={{ color: "#0f172a" }}>{q.title}</div>
+                                  <p className="text-xs mt-1" style={{ color: "#94a3b8" }}>
+                                    {q.questions?.length || 0} questions · {timeAgo(q.created_at)}
+                                  </p>
+                                </button>
+                                <button onClick={() => deleteSavedQuiz(q)}
+                                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition shrink-0"
+                                  style={{ color: "#f43f5e" }}>
+                                  <IconTrash size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <h3 className="text-[10px] font-bold uppercase tracking-widest mb-2 mt-6" style={{ color: "#94a3b8" }}>Generate from a note</h3>
+                      <div className="space-y-3">
                         {subjectNotes(activeSubject.id).slice(0, 3).map(n => (
                           <button key={n.id} onClick={() => { openNote(n); }}
                             className="w-full card-hover rounded-2xl p-4 text-left transition"
@@ -825,11 +892,18 @@ Help the student understand concepts, answer questions, and study effectively. B
                     <div className="max-w-2xl mx-auto">
                       <div className="flex items-center justify-between mb-5">
                         <h2 className="text-base font-bold" style={{ color: "#0f172a" }}>Quiz</h2>
-                        <button onClick={() => { setQuizData(null); setQuizAnswers({}); }}
-                          className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl transition"
-                          style={{ border: "1.5px solid #e2e8f0", color: "#64748b" }}>
-                          <IconRefresh size={14} /> Reset
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={saveQuiz} disabled={savingQuiz}
+                            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl text-white font-semibold transition"
+                            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 14px rgba(99,102,241,0.25)" }}>
+                            {savingQuiz ? <IconLoader2 size={14} className="animate-spin" /> : <IconCheck size={14} />} Save quiz
+                          </button>
+                          <button onClick={() => { setQuizData(null); setQuizAnswers({}); }}
+                            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl transition"
+                            style={{ border: "1.5px solid #e2e8f0", color: "#64748b" }}>
+                            <IconRefresh size={14} /> Reset
+                          </button>
+                        </div>
                       </div>
                       {Object.keys(quizAnswers).length === quizData.length && (
                         <div className="rounded-2xl p-4 mb-4 flex items-center gap-3"
