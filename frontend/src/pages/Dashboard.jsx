@@ -41,6 +41,29 @@ const Empty = ({ icon: Icon, text, sub, action, actionLabel }) => (
   </div>
 );
 
+// ── flashcard (click to flip) ───────────────────────────────────────────────
+const Flashcard = ({ term, definition }) => {
+  const [flipped, setFlipped] = useState(false);
+  return (
+    <button onClick={() => setFlipped(f => !f)}
+      className="w-full text-left rounded-2xl p-4 transition min-h-[96px] flex flex-col justify-center"
+      style={{ background: flipped ? "rgba(99,102,241,0.06)" : "#fff", border: "1.5px solid #e2e8f0", boxShadow: "0 2px 8px rgba(15,23,42,0.06)" }}>
+      {!flipped ? (
+        <>
+          <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#94a3b8" }}>Term</div>
+          <div className="text-sm font-semibold" style={{ color: "#0f172a" }}>{term}</div>
+          <div className="text-[10px] mt-2" style={{ color: "#cbd5e1" }}>Click to flip</div>
+        </>
+      ) : (
+        <>
+          <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#6366f1" }}>Definition</div>
+          <div className="text-sm leading-6" style={{ color: "#374151" }}>{definition}</div>
+        </>
+      )}
+    </button>
+  );
+};
+
 // ── card style ─────────────────────────────────────────────────────────────
 const card = { background: "#fff", border: "1.5px solid #e2e8f0", boxShadow: "0 2px 8px rgba(15,23,42,0.06)" };
 const inp = "w-full rounded-2xl px-4 py-2.5 text-sm outline-none transition";
@@ -85,6 +108,10 @@ export default function Dashboard() {
   const [aiResult, setAiResult] = useState(null);
   const [savedQuizzes, setSavedQuizzes] = useState([]);   // saved quizzes for active subject
   const [savingQuiz, setSavingQuiz]     = useState(false);
+
+  // study plan
+  const [studyPlan, setStudyPlan]       = useState(null);
+  const [planLoading, setPlanLoading]   = useState(false);
 
   // file drop in chat
   const fileRef    = useRef(null);
@@ -183,6 +210,7 @@ export default function Dashboard() {
     setNotesPanel(false);
     setQuizData(null);
     setQuizAnswers({});
+    setStudyPlan(null);
   };
 
   // ── notes ──────────────────────────────────────────────────────────────
@@ -354,6 +382,29 @@ Help the student understand concepts, answer questions, and study effectively. B
     setSavedQuizzes(prev => prev.filter(x => x.id !== q.id));
   };
 
+  // ── study plan (AI-generated) ────────────────────────────────────────────
+  const generatePlan = async () => {
+    if (!activeSubject) return;
+    setPlanLoading(true);
+    setStudyPlan(null);
+    const sn = subjectNotes(activeSubject.id);
+    const noteContext = sn.map(n => `- ${n.title}: ${n.content.slice(0, 200)}`).join("\n").slice(0, 2500);
+    const system = `You are a study coach. Create a focused, actionable study plan for the subject "${activeSubject.name}".
+Organise it into three clearly labelled sections: "This week", "Daily focus", and "Goals". Use short, practical bullet points (start each with "- "). Keep it concise. Base it on the student's notes when available.
+Student's notes:
+${noteContext || "No notes yet — give a sensible starter plan for this subject."}`;
+    try {
+      const res = await api.post("/ai/chat", {
+        messages: [{ role: "user", content: `Create my study plan for ${activeSubject.name}.` }],
+        system,
+      });
+      setStudyPlan(res.data.result);
+    } catch {
+      alert("Couldn't generate a study plan right now. Try again.");
+    }
+    setPlanLoading(false);
+  };
+
   // ── filtered notes ─────────────────────────────────────────────────────
   const subjectNotes = (subId) => notes.filter(n => n.subject_id === subId);
   const filteredAllNotes = notes.filter(n =>
@@ -499,16 +550,15 @@ Help the student understand concepts, answer questions, and study effectively. B
         {/* ── HOME ── */}
         {view === "home" && (
           <div className="flex-1 flex flex-col overflow-y-auto">
-            <div className="px-8 py-10 max-w-3xl mx-auto w-full">
+            <div className="px-8 py-8 max-w-5xl mx-auto w-full">
               <h1 className="text-3xl font-bold mb-1" style={{ color: "#0f172a" }}>Good day, {userName} 👋</h1>
               <p className="text-sm mb-8" style={{ color: "#64748b" }}>Pick a subject to start studying or create a new note.</p>
 
               {/* stats */}
-              <div className="grid grid-cols-3 gap-4 mb-8">
+              <div className="grid grid-cols-2 gap-4 mb-8">
                 {[
                   { label: "Notes", val: notes.length, icon: IconNote, color: "#6366f1" },
                   { label: "Subjects", val: subjects.length, icon: IconFolder, color: "#06b6d4" },
-                  { label: "AI results", val: 0, icon: IconSparkles, color: "#10b981" },
                 ].map(s => (
                   <div key={s.label} className="rounded-2xl p-4 flex items-center gap-3" style={card}>
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${s.color}15` }}>
@@ -955,33 +1005,42 @@ Help the student understand concepts, answer questions, and study effectively. B
               {activeTab === "studyplan" && (
                 <div className="flex-1 overflow-y-auto p-6">
                   <div className="max-w-2xl mx-auto">
-                    <h2 className="text-base font-bold mb-5" style={{ color: "#0f172a" }}>Study Plan for {activeSubject.name}</h2>
-                    <div className="grid gap-4">
-                      {[
-                        { title: "This week", icon: IconBolt, color: "#6366f1", items: ["Review all notes in this subject", "Complete at least one quiz", "Create flashcards for key terms"] },
-                        { title: "Daily focus", icon: IconTarget, color: "#06b6d4", items: subjectNotes(activeSubject.id).slice(0, 3).map(n => `Review: ${n.title}`) },
-                        { title: "Goals", icon: IconTrophy, color: "#10b981", items: ["Summarise each note using AI", "Test yourself with the quiz", "Use the chat to ask questions"] },
-                      ].map((col, i) => (
-                        <div key={i} className="rounded-2xl p-5" style={card}>
-                          <div className="flex items-center gap-2 mb-4">
-                            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${col.color}15` }}>
-                              <col.icon size={15} style={{ color: col.color }} />
-                            </div>
-                            <span className="text-sm font-bold" style={{ color: "#0f172a" }}>{col.title}</span>
-                          </div>
-                          <div className="space-y-2">
-                            {col.items.length === 0 ? (
-                              <p className="text-xs" style={{ color: "#94a3b8" }}>Add notes to this subject to get a personalised plan.</p>
-                            ) : col.items.map((item, j) => (
-                              <div key={j} className="flex items-start gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: col.color }} />
-                                <p className="text-sm" style={{ color: "#475569" }}>{item}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-between mb-5">
+                      <h2 className="text-base font-bold" style={{ color: "#0f172a" }}>Study Plan for {activeSubject.name}</h2>
+                      {studyPlan && (
+                        <button onClick={generatePlan} disabled={planLoading}
+                          className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl transition"
+                          style={{ border: "1.5px solid #e2e8f0", color: "#64748b" }}>
+                          <IconRefresh size={14} /> Regenerate
+                        </button>
+                      )}
                     </div>
+
+                    {planLoading ? (
+                      <div className="flex flex-col items-center justify-center gap-3 py-20">
+                        <IconLoader2 size={26} className="animate-spin" style={{ color: "#6366f1" }} />
+                        <p className="text-sm" style={{ color: "#64748b" }}>Building your personalised study plan…</p>
+                      </div>
+                    ) : studyPlan ? (
+                      <div className="rounded-2xl p-5 text-sm leading-7 whitespace-pre-wrap" style={{ ...card, color: "#374151" }}>
+                        {studyPlan}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "rgba(99,102,241,0.08)" }}>
+                          <IconCalendar size={24} style={{ color: "#6366f1" }} />
+                        </div>
+                        <p className="font-semibold text-sm" style={{ color: "#0f172a" }}>No study plan yet</p>
+                        <p className="text-xs max-w-xs" style={{ color: "#94a3b8" }}>
+                          Generate a focused, AI-powered plan based on your notes for {activeSubject.name}.
+                        </p>
+                        <button onClick={generatePlan} disabled={planLoading}
+                          className="mt-1 flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition"
+                          style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 14px rgba(99,102,241,0.25)" }}>
+                          <IconSparkles size={15} /> Generate study plan
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1057,7 +1116,7 @@ Help the student understand concepts, answer questions, and study effectively. B
       {aiResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(8px)" }}>
-          <div className="rounded-3xl p-6 w-full max-w-lg mx-4 flex flex-col"
+          <div className={`rounded-3xl p-6 w-full ${aiResult.type === "flashcards" ? "max-w-2xl" : "max-w-lg"} mx-4 flex flex-col`}
             style={{ background: "#fff", boxShadow: "0 20px 60px rgba(15,23,42,0.2)", maxHeight: "80vh" }}>
 
             {/* header */}
@@ -1068,7 +1127,7 @@ Help the student understand concepts, answer questions, and study effectively. B
                   <IconSparkles size={14} className="text-white" />
                 </div>
                 <h3 className="text-base font-bold capitalize" style={{ color: "#0f172a" }}>
-                  {aiResult.type === "summary" ? "Summary" : "Explanation"}
+                  {aiResult.type === "summary" ? "Summary" : aiResult.type === "flashcards" ? "Flashcards" : "Explanation"}
                 </h3>
               </div>
               <button onClick={() => setAiResult(null)}
@@ -1079,14 +1138,27 @@ Help the student understand concepts, answer questions, and study effectively. B
             </div>
 
             {/* content */}
-            <div className="flex-1 overflow-y-auto rounded-2xl p-4 text-sm leading-7 whitespace-pre-wrap"
-              style={{ background: "#f8faff", border: "1.5px solid #e2e8f0", color: "#374151" }}>
-              {aiResult.content}
+            <div className="flex-1 overflow-y-auto rounded-2xl"
+              style={aiResult.type === "flashcards"
+                ? { padding: "2px" }
+                : { background: "#f8faff", border: "1.5px solid #e2e8f0", color: "#374151", padding: "1rem" }}>
+              {aiResult.type === "flashcards" && Array.isArray(aiResult.content) ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {aiResult.content.map((c, i) => (
+                    <Flashcard key={i} term={c.term} definition={c.definition} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm leading-7 whitespace-pre-wrap">{aiResult.content}</div>
+              )}
             </div>
 
             {/* footer */}
             <div className="flex gap-2 mt-4">
-              <button onClick={() => navigator.clipboard.writeText(aiResult.content)}
+              <button onClick={() => navigator.clipboard.writeText(
+                  aiResult.type === "flashcards" && Array.isArray(aiResult.content)
+                    ? aiResult.content.map(c => `${c.term}: ${c.definition}`).join("\n")
+                    : aiResult.content)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition"
                 style={{ border: "1.5px solid #e2e8f0", color: "#64748b" }}>
                 <IconCopy size={13} /> Copy
