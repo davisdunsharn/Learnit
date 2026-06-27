@@ -52,6 +52,10 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-app.listen(PORT, () => console.log(`LearnIt server running on port ${PORT}`));
+// Only start a listening server when run directly (local dev / traditional host).
+// On Vercel the app is imported and invoked as a serverless function instead.
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`LearnIt server running on port ${PORT}`));
+}
 
 module.exports = app;
