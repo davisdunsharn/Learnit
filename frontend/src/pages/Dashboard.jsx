@@ -10,7 +10,7 @@ import {
   IconSparkles, IconBulb, IconHelpCircle, IconLayoutGrid, IconCalendar,
   IconTrash, IconEdit, IconCheck, IconLoader2, IconUpload, IconCopy,
   IconFileText, IconPhoto, IconMessageCircle, IconRefresh, IconTrophy,
-  IconTarget, IconBolt, IconNotes, IconChevronLeft, IconPencil,
+  IconTarget, IconBolt, IconNotes, IconChevronLeft, IconPencil, IconMenu2,
 } from "@tabler/icons-react";
 
 // ── markdown rendering (ChatGPT-style AI output) ─────────────────────────────
@@ -116,6 +116,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab]       = useState("chat");  // chat | quiz | studyplan
   const [activeNote, setActiveNote]     = useState(null);    // note being edited/viewed
   const [notesPanel, setNotesPanel]     = useState(false);   // slide-in notes panel
+  const [sidebarOpen, setSidebarOpen]   = useState(false);   // mobile sidebar drawer
   const [view, setView]                 = useState("home");  // home | subject | allnotes | newnote
   const [chats, setChats]               = useState({});      // { subjectId: [messages] }
   const [chatInput, setChatInput]       = useState("");
@@ -245,6 +246,7 @@ export default function Dashboard() {
     setQuizData(null);
     setQuizAnswers({});
     setStudyPlan(null);
+    setSidebarOpen(false);
   };
 
   // ── notes ──────────────────────────────────────────────────────────────
@@ -253,6 +255,7 @@ export default function Dashboard() {
     setNoteError("");
     setView("newnote");
     setNotesPanel(false);
+    setSidebarOpen(false);
   };
 
   const openNote = (note) => {
@@ -260,6 +263,7 @@ export default function Dashboard() {
     setNoteError("");
     setView("newnote");
     setNotesPanel(false);
+    setSidebarOpen(false);
   };
 
   const saveNote = async () => {
@@ -468,8 +472,14 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "#f0f4ff" }}>
 
+      {/* mobile sidebar backdrop */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-30 md:hidden" style={{ background: "rgba(15,23,42,0.4)" }}
+          onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* ══ SIDEBAR ══ */}
-      <aside className="w-60 flex flex-col shrink-0 overflow-hidden" style={{ background: "#fff", borderRight: "1px solid #e2e8f0", boxShadow: "2px 0 12px rgba(15,23,42,0.05)" }}>
+      <aside className={`w-60 flex flex-col shrink-0 overflow-hidden fixed md:static inset-y-0 left-0 z-40 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`} style={{ background: "#fff", borderRight: "1px solid #e2e8f0", boxShadow: "2px 0 12px rgba(15,23,42,0.05)" }}>
 
         {/* logo */}
         <div className="flex items-center gap-3 px-4 py-4" style={{ borderBottom: "1px solid #f1f5f9" }}>
@@ -482,7 +492,7 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
 
         {/* dashboard button */}
         <div className="px-3 pt-3">
-          <button onClick={() => { setActiveSubject(null); setView("home"); }}
+          <button onClick={() => { setActiveSubject(null); setView("home"); setSidebarOpen(false); }}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition"
             style={{ background: view === "home" ? "rgba(99,102,241,0.1)" : "rgba(99,102,241,0.06)", color: "#6366f1", border: "1.5px solid rgba(99,102,241,0.15)" }}>
             <IconLayoutGrid size={14} /> Dashboard
@@ -493,7 +503,7 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
         <nav className="flex-1 overflow-y-auto px-2 pt-3 pb-2">
 
           {/* all notes link */}
-          <button onClick={() => { setView("allnotes"); setActiveSubject(null); }}
+          <button onClick={() => { setView("allnotes"); setActiveSubject(null); setSidebarOpen(false); }}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition mb-1"
             style={{ color: view === "allnotes" ? "#6366f1" : "#64748b", background: view === "allnotes" ? "rgba(99,102,241,0.08)" : "transparent", fontWeight: view === "allnotes" ? 600 : 400 }}>
             <IconNotes size={15} /> Notes
@@ -587,13 +597,29 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
       </aside>
 
       {/* ══ MAIN ══ */}
+      <div className="flex-1 flex flex-col overflow-hidden relative min-w-0">
+
+        {/* mobile top bar */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 shrink-0" style={{ background: "#fff", borderBottom: "1px solid #e2e8f0" }}>
+          <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" style={{ color: "#475569" }}>
+            <IconMenu2 size={22} />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-xl flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+              <IconBook2 size={14} className="text-white" />
+            </div>
+            <span className="syne text-base font-bold" style={{ color: "#0f172a" }}>LearnIt</span>
+          </div>
+        </div>
+
       <div className="flex-1 flex overflow-hidden relative">
 
         {/* ── HOME ── */}
         {view === "home" && (
           <div className="flex-1 flex flex-col overflow-y-auto">
-            <div className="px-8 py-8 max-w-5xl mx-auto w-full">
-              <h1 className="text-3xl font-bold mb-1" style={{ color: "#0f172a" }}>Good day, {userName} 👋</h1>
+            <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-5xl mx-auto w-full">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-1" style={{ color: "#0f172a" }}>Good day, {userName} 👋</h1>
               <p className="text-sm mb-8" style={{ color: "#64748b" }}>Pick a subject to start studying or create a new note.</p>
 
               {/* stats */}
@@ -624,7 +650,7 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
               {subjects.length === 0 ? (
                 <Empty icon={IconFolder} text="No subjects yet" sub="Create a subject to organise your notes and start studying." action={() => setAddSubjModal(true)} actionLabel="Add Subject" />
               ) : (
-                <div className="grid grid-cols-2 gap-3 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
                   {subjects.map(subj => {
                     const color = subj.colour || colorFor(subj.name);
                     return (
@@ -680,26 +706,26 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
         {/* ── ALL NOTES ── */}
         {view === "allnotes" && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center gap-3 px-6 py-4 shrink-0" style={{ borderBottom: "1px solid #e2e8f0", background: "rgba(255,255,255,0.9)" }}>
-              <h1 className="text-base font-bold flex-1" style={{ color: "#0f172a" }}>All Notes</h1>
+            <div className="flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-4 shrink-0" style={{ borderBottom: "1px solid #e2e8f0", background: "rgba(255,255,255,0.9)" }}>
+              <h1 className="text-base font-bold flex-1 min-w-0" style={{ color: "#0f172a" }}>All Notes</h1>
               <div className="relative">
                 <IconSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#94a3b8" }} />
                 <input value={noteSearch} onChange={e => setNoteSearch(e.target.value)} placeholder="Search notes…"
-                  className="rounded-xl pl-8 pr-4 py-2 text-sm outline-none w-48"
+                  className="rounded-xl pl-8 pr-4 py-2 text-sm outline-none w-32 sm:w-48"
                   style={{ background: "#f8faff", border: "1.5px solid #e2e8f0", color: "#0f172a" }}
                   onFocus={onFocus} onBlur={onBlur} />
               </div>
               <button onClick={() => openNewNote()}
-                className="flex items-center gap-2 text-white text-sm font-semibold px-4 py-2 rounded-xl"
+                className="flex items-center gap-2 text-white text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl shrink-0"
                 style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 14px rgba(99,102,241,0.25)" }}>
-                <IconPlus size={14} /> New Note
+                <IconPlus size={14} /> <span className="hidden sm:inline">New Note</span>
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               {filteredAllNotes.length === 0 ? (
                 <Empty icon={IconNote} text="No notes found" sub="Create your first note to get started." action={() => openNewNote()} actionLabel="New Note" />
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {filteredAllNotes.map(n => (
                     <button key={n.id} onClick={() => openNote(n)}
                       className="card-hover rounded-2xl p-4 text-left transition"
@@ -727,11 +753,11 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
         {view === "newnote" && (
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* topbar */}
-            <div className="flex items-center gap-3 px-6 py-3 shrink-0" style={{ borderBottom: "1px solid #e2e8f0", background: "rgba(255,255,255,0.9)" }}>
+            <div className="flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 shrink-0" style={{ borderBottom: "1px solid #e2e8f0", background: "rgba(255,255,255,0.9)" }}>
               <button onClick={() => {
                 if (activeSubject) { setView("subject"); setNotesPanel(true); }
                 else setView("allnotes");
-              }} className="flex items-center gap-1.5 text-sm transition" style={{ color: "#94a3b8" }}
+              }} className="flex items-center gap-1.5 text-sm transition shrink-0" style={{ color: "#94a3b8" }}
                 onMouseEnter={e => e.currentTarget.style.color = "#6366f1"}
                 onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}>
                 <IconArrowLeft size={16} /> Back
@@ -748,7 +774,7 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
                 </button>
               )}
               <button onClick={saveNote} disabled={savingNote}
-                className="flex items-center gap-2 text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
+                className="flex items-center gap-2 text-white text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition shrink-0"
                 style={{ background: savingNote ? "#94a3b8" : "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
                 {savingNote ? <IconLoader2 size={14} className="animate-spin" /> : <IconCheck size={14} />}
                 Save
@@ -756,26 +782,25 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
             </div>
 
             {/* editor */}
-            <div className="flex flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-8 max-w-3xl mx-auto w-full">
+            <div className="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden">
+              <div className="flex-1 md:overflow-y-auto p-4 sm:p-8 max-w-3xl mx-auto w-full">
                 {/* auto title preview */}
                 <div className="text-xs mb-3 font-medium" style={{ color: "#94a3b8" }}>
                   Title: <span style={{ color: "#6366f1" }}>{firstLine(editNote.content) || "First line becomes the title"}</span>
                 </div>
                 <textarea
-                  autoFocus
                   value={editNote.content}
                   onChange={e => { setEditNote(prev => ({ ...prev, content: e.target.value })); setNoteError(""); }}
                   placeholder={"Start writing...\n\nThe first line becomes your note title automatically."}
-                  className="w-full outline-none resize-none text-sm leading-8"
-                  style={{ background: "transparent", color: "#0f172a", minHeight: "60vh", fontFamily: "inherit" }}
+                  className="w-full outline-none resize-none text-sm leading-8 min-h-[45vh] md:min-h-[60vh]"
+                  style={{ background: "transparent", color: "#0f172a", fontFamily: "inherit" }}
                 />
               </div>
 
               {/* AI tools panel */}
-              <div className="w-52 shrink-0 p-4 overflow-y-auto" style={{ borderLeft: "1px solid #e2e8f0", background: "#fafbff" }}>
+              <div className="w-full md:w-52 shrink-0 p-4 md:overflow-y-auto border-t md:border-t-0 md:border-l" style={{ borderColor: "#e2e8f0", background: "#fafbff" }}>
                 <div className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "#94a3b8" }}>AI Tools</div>
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 md:grid-cols-1 gap-2">
                   {[
                     { label: "Summarise", icon: IconFileText, type: "summary" },
                     { label: "Explain simply", icon: IconBulb, type: "explain" },
@@ -802,41 +827,41 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
           <div className="flex-1 flex flex-col overflow-hidden">
 
             {/* subject topbar */}
-            <div className="flex items-center gap-3 px-5 py-3 shrink-0" style={{ borderBottom: "1px solid #e2e8f0", background: "rgba(255,255,255,0.95)" }}>
+            <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 shrink-0" style={{ borderBottom: "1px solid #e2e8f0", background: "rgba(255,255,255,0.95)" }}>
               <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white shrink-0"
                 style={{ background: activeSubject.colour || colorFor(activeSubject.name) }}>
                 {initials(activeSubject.name)}
               </div>
-              <span className="font-semibold text-sm flex-1" style={{ color: "#0f172a" }}>{activeSubject.name}</span>
+              <span className="font-semibold text-sm flex-1 truncate min-w-0" style={{ color: "#0f172a" }}>{activeSubject.name}</span>
 
               {/* tab switcher */}
-              <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "#f1f5f9" }}>
+              <div className="flex items-center gap-1 p-1 rounded-xl shrink-0" style={{ background: "#f1f5f9" }}>
                 {[
                   { id: "chat", icon: IconMessageCircle, label: "Chat" },
                   { id: "quiz", icon: IconHelpCircle, label: "Quiz" },
                   { id: "studyplan", icon: IconCalendar, label: "Plan" },
                 ].map(tab => (
                   <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition"
                     style={{
                       background: activeTab === tab.id ? "#fff" : "transparent",
                       color: activeTab === tab.id ? "#6366f1" : "#64748b",
                       boxShadow: activeTab === tab.id ? "0 1px 4px rgba(15,23,42,0.08)" : "none",
                     }}>
-                    <tab.icon size={13} /> {tab.label}
+                    <tab.icon size={13} /> <span className="hidden sm:inline">{tab.label}</span>
                   </button>
                 ))}
               </div>
 
               {/* notes panel toggle */}
               <button onClick={() => setNotesPanel(!notesPanel)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-medium transition shrink-0"
                 style={{ background: notesPanel ? "rgba(99,102,241,0.08)" : "#f1f5f9", color: notesPanel ? "#6366f1" : "#64748b", border: notesPanel ? "1.5px solid rgba(99,102,241,0.2)" : "1.5px solid transparent" }}>
-                <IconNote size={13} /> Notes {subjectNotes(activeSubject.id).length > 0 && `(${subjectNotes(activeSubject.id).length})`}
+                <IconNote size={13} /> <span className="hidden sm:inline">Notes </span>{subjectNotes(activeSubject.id).length > 0 && `(${subjectNotes(activeSubject.id).length})`}
               </button>
             </div>
 
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 overflow-hidden relative">
 
               {/* ── CHAT TAB ── */}
               {activeTab === "chat" && (
@@ -1089,7 +1114,7 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
 
               {/* ── NOTES PANEL (slide-in right) ── */}
               {notesPanel && (
-                <div className="w-64 shrink-0 flex flex-col overflow-hidden" style={{ borderLeft: "1px solid #e2e8f0", background: "#fafbff" }}>
+                <div className="w-72 max-w-[85%] md:w-64 shrink-0 flex flex-col overflow-hidden absolute md:relative inset-y-0 right-0 z-20 md:z-auto shadow-xl md:shadow-none" style={{ borderLeft: "1px solid #e2e8f0", background: "#fafbff" }}>
                   <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: "1px solid #e2e8f0" }}>
                     <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "#94a3b8" }}>Notes</span>
                     <button onClick={() => openNewNote(activeSubject.id)}
@@ -1126,6 +1151,7 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
             </div>
           </div>
         )}
+      </div>
       </div>
 
       {/* ══ ADD SUBJECT MODAL ══ */}
@@ -1185,7 +1211,7 @@ ${noteContext || "No notes yet — give a sensible starter plan for this subject
                 ? { padding: "2px" }
                 : { background: "#f8faff", border: "1.5px solid #e2e8f0", color: "#374151", padding: "1rem" }}>
               {aiResult.type === "flashcards" && Array.isArray(aiResult.content) ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {aiResult.content.map((c, i) => (
                     <Flashcard key={i} term={c.term} definition={c.definition} />
                   ))}
